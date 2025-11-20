@@ -66,13 +66,13 @@ export default function Viewport() {
 
     const graph = [];
     const processedUuids = new Set();
-    const internalObjectNames = new Set(['gridHelper', 'Main Camera']);
+    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'floor']);
 
     const buildNode = (object) => {
       if (!object || processedUuids.has(object.uuid) || internalObjectNames.has(object.name) || object.isTransformControls || object.isLine) return null;
       
       if (object.parent === sceneRef.current && (object.isLight || object.isCamera)) {
-          if (internalObjectNames.has(object.name)) return null;
+          if (object.name !== 'Directional Light') return null;
       }
       
       processedUuids.add(object.uuid);
@@ -192,6 +192,9 @@ export default function Viewport() {
         object.uuid = objState.uuid;
         objectsRef.current.set(objState.uuid, object);
       }
+      
+      object.castShadow = true;
+      object.receiveShadow = true;
 
       object.name = objState.name;
       object.position.copy(objState.position);
@@ -268,7 +271,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdbeafe); // Light blue background
+    scene.background = new THREE.Color(0x333333); // Darker background
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -284,6 +287,8 @@ export default function Viewport() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
     rendererRef.current = renderer;
     currentMount.appendChild(renderer.domElement);
 
@@ -299,10 +304,39 @@ export default function Viewport() {
     const transformControls = new TransformControls(camera, renderer.domElement);
     scene.add(transformControls);
     transformControlsRef.current = transformControls;
+    
+    // Floor
+    const floorGeometry = new THREE.PlaneGeometry(50, 50);
+    const floorMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.01;
+    floor.receiveShadow = true;
+    floor.name = 'floor';
+    scene.add(floor);
+
 
     const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    directionalLight.position.set(10, 20, 5);
+    directionalLight.castShadow = true;
+    directionalLight.name = "Directional Light";
+    directionalLight.shadow.camera.top = 10;
+    directionalLight.shadow.camera.bottom = -10;
+    directionalLight.shadow.camera.left = -10;
+    directionalLight.shadow.camera.right = 10;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    scene.add(directionalLight);
+    objectsRef.current.set(directionalLight.uuid, directionalLight);
+
 
     // HDR Lighting
     new RGBELoader().load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/empty_warehouse_01_1k.hdr', (texture) => {
@@ -725,8 +759,9 @@ export default function Viewport() {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
         let geometry;
+        const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
         const material = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+          color: randomColor,
           metalness: 0.1,
           roughness: 0.5
         });
@@ -761,6 +796,8 @@ export default function Viewport() {
         
         geometry.computeVertexNormals();
         const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         mesh.name = primitiveType.charAt(0).toUpperCase() + primitiveType.slice(1);
         mesh.position.y = 0.5;
         sceneRef.current.add(mesh);
@@ -785,6 +822,11 @@ export default function Viewport() {
         
         object.traverse((child) => {
           if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (!child.material.color) { // Assign random color if one doesn't exist
+                child.material.color = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
+              }
               if (!child.geometry.index) {
                   child.geometry = child.geometry.toIndexed();
               }
