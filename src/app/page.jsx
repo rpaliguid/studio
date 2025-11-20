@@ -1,6 +1,5 @@
 import Header from '@/components/nascad/header';
 import LeftPanel from '@/components/nascad/left-panel';
-import RightPanel from '@/components/nascad/right-panel';
 import Viewport from '@/components/nascad/viewport';
 import { SceneProvider } from '@/components/nascad/scene-provider';
 
@@ -14,7 +13,6 @@ export default function NascadEditor() {
           <main className="flex-1 relative bg-muted/20">
             <Viewport />
           </main>
-          <RightPanel />
         </div>
       </div>
     </SceneProvider>

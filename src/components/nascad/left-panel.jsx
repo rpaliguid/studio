@@ -47,10 +47,10 @@ const SceneItem = ({ name, children, level = 0 }) => {
 };
 
 const selectionModes = [
-    { id: 'object', icon: Box, name: 'Object Select' },
-    { id: 'vertex', icon: VertexIcon, name: 'Vertex Select' },
-    { id: 'edge', icon: EdgeIcon, name: 'Edge Select' },
-    { id: 'face', icon: FaceIcon, name: 'Face Select' },
+    { id: 'object', icon: Box, name: 'Object Select (1)' },
+    { id: 'vertex', icon: VertexIcon, name: 'Vertex Select (2)' },
+    { id: 'edge', icon: EdgeIcon, name: 'Edge Select (3)' },
+    { id: 'face', icon: FaceIcon, name: 'Face Select (4)' },
 ];
 
 const transformTools = [
@@ -77,6 +77,7 @@ const ToolButton = ({ tool, onClick, currentTool }) => (
                 variant={currentTool === tool.id ? "secondary" : "outline"} 
                 size="icon" 
                 onClick={onClick}
+                className="h-10 w-10"
             >
                 <tool.icon className="h-5 w-5" />
             </Button>
@@ -86,7 +87,12 @@ const ToolButton = ({ tool, onClick, currentTool }) => (
 );
 
 export default function LeftPanel() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent } = useScene();
+
+  const handleSelectionModeChange = (newMode) => {
+    setSelectionMode(newMode);
+    setSelectedSubComponent(null); // Clear sub-component selection when changing mode
+  };
 
   return (
     <aside className="w-72 border-r border-border bg-card overflow-y-auto">
@@ -142,7 +148,7 @@ export default function LeftPanel() {
                 <p className="text-xs font-medium text-muted-foreground mb-2">Selection Mode</p>
                 <div className="grid grid-cols-4 gap-2">
                   {selectionModes.map(mode => (
-                      <ToolButton key={mode.id} tool={mode} onClick={() => setSelectionMode(mode.id)} currentTool={selectionMode} />
+                      <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} />
                   ))}
                 </div>
               </div>
@@ -150,12 +156,18 @@ export default function LeftPanel() {
               <Separator />
               
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Tools</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Transform Tools</p>
                 <div className="grid grid-cols-4 gap-2">
                   {transformTools.map(t => (
                       <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
                   ))}
                 </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Modeling Tools</p>
                 <div className="grid grid-cols-4 gap-2 mt-2">
                   {modelingTools.map(t => (
                        <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
