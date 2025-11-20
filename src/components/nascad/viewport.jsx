@@ -4,8 +4,6 @@ import { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useScene } from './scene-provider';
 
@@ -759,15 +757,7 @@ export default function Viewport() {
       reader.onload = (e) => {
         const contents = e.target.result;
         
-        if (filename.endsWith('.fbx')) {
-          const loader = new FBXLoader();
-          const object = loader.parse(contents);
-          handleLoadedModel(object, object.animations);
-        } else if (filename.endsWith('.obj')) {
-          const loader = new OBJLoader();
-          const object = loader.parse(contents);
-          handleLoadedModel(object, []);
-        } else if (filename.endsWith('.gltf') || filename.endsWith('.glb')) {
+        if (filename.endsWith('.gltf') || filename.endsWith('.glb')) {
           const loader = new GLTFLoader();
           loader.parse(contents, '', (gltf) => {
             handleLoadedModel(gltf.scene, gltf.animations);
@@ -780,7 +770,7 @@ export default function Viewport() {
         }
       };
 
-      if (filename.endsWith('.fbx') || filename.endsWith('.glb') || filename.endsWith('.gltf')) {
+      if (filename.endsWith('.glb') || filename.endsWith('.gltf')) {
         reader.readAsArrayBuffer(fileToImport);
       } else {
         reader.readAsText(fileToImport);

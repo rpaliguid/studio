@@ -41,7 +41,7 @@ export default function Header() {
           ref={fileInputRef}
           onChange={handleFileChange}
           className="hidden"
-          accept=".obj,.fbx,.gltf,.glb"
+          accept=".gltf,.glb"
         />
         <Button variant="outline" size="sm" onClick={handleImportClick}>
           <FileUp className="mr-2 h-4 w-4" />
