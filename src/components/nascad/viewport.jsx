@@ -269,17 +269,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 2;
-    const context = canvas.getContext('2d');
-    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#2a3a4a'); 
-    gradient.addColorStop(1, '#1c2530');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    const backgroundTexture = new THREE.CanvasTexture(canvas);
-    scene.background = backgroundTexture;
+    scene.background = new THREE.Color(0x2d2d2d);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -297,13 +287,18 @@ export default function Viewport() {
 
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
+    orbitControls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.PAN,
+      RIGHT: THREE.MOUSE.PAN, // Keep right-click as pan for convenience
+    };
     orbitControlsRef.current = orbitControls;
 
     const transformControls = new TransformControls(camera, renderer.domElement);
     scene.add(transformControls);
     transformControlsRef.current = transformControls;
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0x556677, 0x445566);
+    const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x444444);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
