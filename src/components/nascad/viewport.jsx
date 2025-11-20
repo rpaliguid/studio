@@ -766,20 +766,6 @@ export default function Viewport() {
           return;
         }
 
-        if (primitiveType === 'robotic-arm') {
-          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/Robotic%20Arm.glb', (gltf) => {
-            handleLoadedModel(gltf.scene, gltf.animations, 'Robotic Arm');
-          });
-          return;
-        }
-
-        if (primitiveType === 'gun') {
-          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/Gun.glb', (gltf) => {
-            handleLoadedModel(gltf.scene, gltf.animations, 'Gun');
-          });
-          return;
-        }
-
         let geometry;
         const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
         const material = new THREE.MeshStandardMaterial({
