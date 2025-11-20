@@ -24,6 +24,7 @@ import {
   Trash2,
   Camera,
   Sun,
+  ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
 import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
@@ -32,9 +33,11 @@ import { useScene } from '@/components/nascad/scene-provider';
 
 
 const SceneItem = ({ node, level = 0 }) => {
-  const { selectedObjects, setSelectedObjects } = useScene();
-  const [visible, setVisible] = useState(true); // This should be tied to actual object visibility later
+  const { selectedObjects, setSelectedObjects, getObjectAndAllChildren } = useScene();
+  const [visible, setVisible] = useState(true);
+  const [isOpen, setIsOpen] = useState(true);
 
+  const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedObjects.some(obj => obj.uuid === node.uuid);
 
   const getIcon = (type) => {
@@ -49,37 +52,69 @@ const SceneItem = ({ node, level = 0 }) => {
   };
 
   const handleSelect = (event) => {
-    const objectToSelect = { uuid: node.uuid, name: node.name, type: node.type };
+    const objectsToSelect = getObjectAndAllChildren(node.uuid);
+    
     if (event.shiftKey) {
         setSelectedObjects(prev => {
-            const isAlreadySelected = prev.some(obj => obj.uuid === node.uuid);
-            if (isAlreadySelected) {
-                return prev.filter(obj => obj.uuid !== node.uuid);
+            const currentSelectionUuids = new Set(prev.map(o => o.uuid));
+            const newSelection = [...prev];
+            let allAreSelected = true;
+
+            for(const obj of objectsToSelect) {
+                if (!currentSelectionUuids.has(obj.uuid)) {
+                    allAreSelected = false;
+                    break;
+                }
+            }
+
+            if (allAreSelected) {
+                // Deselect this group
+                const objectsToSelectUuids = new Set(objectsToSelect.map(o => o.uuid));
+                return prev.filter(obj => !objectsToSelectUuids.has(obj.uuid));
             } else {
-                return [...prev, objectToSelect];
+                // Add this group to selection (avoiding duplicates)
+                const newUuids = new Set(newSelection.map(o => o.uuid));
+                objectsToSelect.forEach(obj => {
+                    if (!newUuids.has(obj.uuid)) {
+                        newSelection.push(obj);
+                    }
+                });
+                return newSelection;
             }
         });
     } else {
-        setSelectedObjects([objectToSelect]);
+        setSelectedObjects(objectsToSelect);
     }
   };
+
+  const handleToggleOpen = (e) => {
+    e.stopPropagation();
+    if (hasChildren) {
+      setIsOpen(!isOpen);
+    }
+  };
+
 
   return (
     <div>
       <div 
         className={`flex items-center justify-between hover:bg-muted/50 rounded-md pr-2 cursor-pointer ${isSelected ? 'bg-primary/20' : ''}`}
         onClick={handleSelect}
+        style={{ paddingLeft: `${level * 1}rem` }}
       >
-        <div className="flex items-center" style={{ paddingLeft: `${level * 1}rem` }}>
+        <div className="flex items-center flex-1 min-w-0">
+          <button onClick={handleToggleOpen} className="w-5 p-0.5 text-muted-foreground disabled:opacity-0" disabled={!hasChildren}>
+             <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+          </button>
           {getIcon(node.type)}
-          <span className="text-sm select-none">{node.name || node.type}</span>
+          <span className="text-sm select-none truncate">{node.name || node.type}</span>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setVisible(!visible); }}>
           {visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
         </Button>
       </div>
-      {node.children && node.children.length > 0 && (
-        <div className="pl-2">
+      {hasChildren && isOpen && (
+        <div>
           {node.children.map(child => (
             <SceneItem key={child.uuid} node={child} level={level + 1} />
           ))}

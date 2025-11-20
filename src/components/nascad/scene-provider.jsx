@@ -79,6 +79,30 @@ export function SceneProvider({ children }) {
       setSelectedObjects([]);
     }
   }, []);
+  
+  const getObjectAndAllChildren = useCallback((uuid) => {
+    const results = [];
+    const findInGraph = (nodes) => {
+        for (const node of nodes) {
+            if (node.uuid === uuid) {
+                const collect = (n) => {
+                    results.push({ uuid: n.uuid, name: n.name, type: n.type });
+                    if (n.children) {
+                        n.children.forEach(collect);
+                    }
+                };
+                collect(node);
+                return true; 
+            }
+            if (node.children && findInGraph(node.children)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    findInGraph(sceneGraph);
+    return results;
+  }, [sceneGraph]);
 
 
   const value = {
@@ -121,6 +145,7 @@ export function SceneProvider({ children }) {
     deleteSelectedObjects, // New name
     sceneGraph,
     setSceneGraph,
+    getObjectAndAllChildren,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;

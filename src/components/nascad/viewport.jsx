@@ -8,7 +8,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useScene } from './scene-provider';
 
 export default function Viewport() {
-  const mountRef = useRef(null);
   const {
     tool,
     setTool,
@@ -29,7 +28,6 @@ export default function Viewport() {
     setAnimationTime,
     animationDuration,
     setAnimationDuration,
-    animationActions,
     setAnimationActions,
     mixer,
     setMixer,
@@ -46,6 +44,7 @@ export default function Viewport() {
     redo,
   } = useScene();
   
+  const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
@@ -66,9 +65,16 @@ export default function Viewport() {
 
     const graph = [];
     const processedUuids = new Set();
+    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'Directional Light', 'Ambient Light']);
 
     const buildNode = (object) => {
-      if (!object || processedUuids.has(object.uuid) || object.name === 'gridHelper' || object.isTransformControls || object.isLine) return null;
+      if (!object || processedUuids.has(object.uuid) || internalObjectNames.has(object.name) || object.isTransformControls || object.isLine) return null;
+      
+      // We only want to show user-imported/created objects at the top level
+      if (object.parent === sceneRef.current && (object.isLight || object.isCamera)) {
+          // Keep the check, but it should not match default lights/cameras now
+          if (internalObjectNames.has(object.name)) return null;
+      }
       
       processedUuids.add(object.uuid);
 
@@ -92,12 +98,9 @@ export default function Viewport() {
     };
     
     sceneRef.current.children.forEach(object => {
-       // Only process top-level objects that aren't part of another object in the graph
-       if (!object.parent || object.parent === sceneRef.current) {
-         const node = buildNode(object);
-         if (node) {
-           graph.push(node);
-         }
+       const node = buildNode(object);
+       if (node) {
+         graph.push(node);
        }
     });
 
@@ -151,8 +154,11 @@ export default function Viewport() {
 
     // Remove objects no longer in state
     currentUuids.forEach(uuid => {
+        const obj = objectsRef.current.get(uuid);
+        // Don't remove essential scene items
+        if(obj && (obj.isCamera || obj.isLight)) return;
+
         if (!stateUuids.has(uuid)) {
-            const obj = objectsRef.current.get(uuid);
             if (obj) {
                 obj.parent?.remove(obj);
                 if (obj.geometry) obj.geometry.dispose();
@@ -209,9 +215,19 @@ export default function Viewport() {
     // Second pass for parenting
     state.forEach(objState => {
         const object = objectsRef.current.get(objState.uuid);
-        const parent = objState.parent ? objectsRef.current.get(objState.parent) : sceneRef.current;
+        let parent = objState.parent ? objectsRef.current.get(objState.parent) : null;
+        if (!parent) {
+          // If parent not found in map, it might be the scene itself if it's a top-level object
+          const parentInScene = sceneRef.current.getObjectByProperty('uuid', objState.parent);
+          if (!parentInScene) {
+            parent = sceneRef.current;
+          }
+        }
+
         if (object && parent && object.parent !== parent) {
             parent.add(object);
+        } else if (object && !object.parent) {
+            sceneRef.current.add(object);
         }
     });
 
@@ -292,6 +308,7 @@ export default function Viewport() {
     scene.add(gridHelper);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    ambientLight.name = "Ambient Light";
     scene.add(ambientLight);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(5, 10, 7.5);
@@ -360,9 +377,20 @@ export default function Viewport() {
       if (intersects.length > 0) {
         let current = intersects[0].object;
         while(current) {
-            if(objectsRef.current.has(current.uuid)) {
-                const objData = objectsRef.current.get(current.uuid);
-                clickedObjectData = { uuid: current.uuid, name: objData.name, type: objData.type };
+            // Find the top-level parent that is tracked in objectsRef
+            if(objectsRef.current.has(current.uuid) && current.parent === sceneRef.current) {
+                clickedObjectData = { uuid: current.uuid, name: current.name, type: current.type };
+                break;
+            }
+             // If we hit the scene without finding a tracked parent, this object is likely part of a group
+            if(current.parent === sceneRef.current) {
+                let groupParent = current;
+                while (groupParent.parent && groupParent.parent !== sceneRef.current) {
+                    groupParent = groupParent.parent;
+                }
+                if (objectsRef.current.has(groupParent.uuid)) {
+                    clickedObjectData = { uuid: groupParent.uuid, name: groupParent.name, type: groupParent.type };
+                }
                 break;
             }
             current = current.parent;
@@ -546,7 +574,8 @@ export default function Viewport() {
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [isPlaying, mixer, setAnimationTime, animationDuration]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, mixer, animationDuration]);
 
 
   // --- Effect for Undo/Redo ---
@@ -586,20 +615,30 @@ export default function Viewport() {
     // Create visuals for all selected objects
     selectedObjects.forEach(selObject => {
         const actualObject = objectsRef.current.get(selObject.uuid);
-        if (!actualObject || !actualObject.isMesh) return;
+        if (!actualObject) return;
+        
+        let objectToOutline = actualObject;
+        if (actualObject.isGroup) {
+            // Find a mesh to get geometry from if it's a group
+            actualObject.traverse(child => {
+                if (child.isMesh) objectToOutline = child;
+            });
+        }
+        
+        if (!objectToOutline.isMesh) return;
 
-        const edges = new THREE.EdgesGeometry(actualObject.geometry, 1);
+        const edges = new THREE.EdgesGeometry(objectToOutline.geometry, 1);
         const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, depthTest: false });
         const objectOutline = new THREE.LineSegments(edges, lineMaterial);
-        objectOutline.matrix.copy(actualObject.matrixWorld);
+        objectOutline.matrix.copy(objectToOutline.matrixWorld);
         objectOutline.matrixAutoUpdate = false;
         objectOutline.renderOrder = 1;
         scene.add(objectOutline);
         selectionVisualsRef.current.push(objectOutline);
 
         const updateOutline = () => {
-            if (actualObject && objectOutline) {
-                objectOutline.matrix.copy(actualObject.matrixWorld);
+            if (objectToOutline && objectOutline) {
+                objectOutline.matrix.copy(objectToOutline.matrixWorld);
             }
         };
         transformControls.addEventListener('objectChange', updateOutline);
@@ -763,6 +802,8 @@ export default function Viewport() {
             animations.forEach(clip => {
                 maxDuration = Math.max(maxDuration, clip.duration);
             });
+
+            newActions.forEach(action => action.play());
             
             setMixer(newMixer);
             setAnimationActions(newActions);
@@ -798,26 +839,9 @@ export default function Viewport() {
       
       setFileToImport(null);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileToImport, setFileToImport, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying, addHistoryState, captureSceneState, updateSceneGraph]);
 
-
-  // --- Effect for Animation Control ---
-  useEffect(() => {
-    if (!mixer || !animationActions) return;
-
-    if (isPlaying) {
-      animationActions.forEach(action => {
-        action.paused = false;
-        if (!action.isRunning()) {
-            action.play();
-        }
-      });
-    } else {
-      animationActions.forEach(action => {
-        action.paused = true;
-      });
-    }
-  }, [isPlaying, mixer, animationActions]);
 
   // --- Effect for Deleting Objects ---
     useEffect(() => {
