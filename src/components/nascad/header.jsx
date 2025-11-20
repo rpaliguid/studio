@@ -1,11 +1,11 @@
 'use client';
-import { FileUp, FileDown, Bot } from 'lucide-react';
+import { FileUp, FileDown, Bot, Undo, Redo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useScene } from './scene-provider';
 import { useRef } from 'react';
 
 export default function Header() {
-  const { setFileToImport } = useScene();
+  const { setFileToImport, undo, redo, canUndo, canRedo } = useScene();
   const fileInputRef = useRef(null);
 
   const handleImportClick = () => {
@@ -26,6 +26,14 @@ export default function Header() {
       <div className="flex items-center gap-2">
         <Bot className="w-6 h-6 text-primary" />
         <h1 className="text-xl font-semibold tracking-tighter text-foreground">Nascad</h1>
+      </div>
+      <div className="flex items-center gap-2 ml-4">
+        <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo}>
+          <Undo className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo}>
+          <Redo className="h-4 w-4" />
+        </Button>
       </div>
       <div className="flex items-center gap-2 ml-auto">
         <input

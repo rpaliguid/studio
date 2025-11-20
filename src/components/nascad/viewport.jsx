@@ -32,6 +32,11 @@ export default function Viewport() {
     setAnimationActions,
     mixer,
     setMixer,
+    history,
+    historyIndex,
+    addHistoryState,
+    isRestoring,
+    setIsRestoring
   } = useScene();
   
   const sceneRef = useRef(null);
@@ -41,6 +46,48 @@ export default function Viewport() {
   const transformControlsRef = useRef(null);
   const selectionVisualsRef = useRef([]); 
   const clockRef = useRef(new THREE.Clock());
+  const objectsRef = useRef(new Map());
+
+  const captureSceneState = useCallback(() => {
+    if (!sceneRef.current) return null;
+    const state = [];
+    sceneRef.current.children.forEach(child => {
+        if ((child.isMesh || child.isGroup) && child.uuid) {
+            if (!objectsRef.current.has(child.uuid)) {
+                objectsRef.current.set(child.uuid, child);
+            }
+            state.push({
+                uuid: child.uuid,
+                position: child.position.clone(),
+                rotation: child.rotation.clone(),
+                scale: child.scale.clone(),
+            });
+        }
+    });
+    return state;
+  }, []);
+
+  const restoreSceneState = useCallback((state) => {
+    if (!sceneRef.current || !state) return;
+    
+    state.forEach(objState => {
+        const object = objectsRef.current.get(objState.uuid);
+        if (object) {
+            object.position.copy(objState.position);
+            object.rotation.copy(objState.rotation);
+            object.scale.copy(objState.scale);
+        }
+    });
+  }, []);
+  
+  // Effect for Undo/Redo
+  useEffect(() => {
+    if (isRestoring && history[historyIndex]) {
+      restoreSceneState(history[historyIndex]);
+      setIsRestoring(false);
+    }
+  }, [isRestoring, historyIndex, history, restoreSceneState, setIsRestoring]);
+
 
   const handleDeselect = useCallback(() => {
     setSelectedObject(null);
@@ -62,6 +109,9 @@ export default function Viewport() {
           closestVertexIndex = i;
         }
       }
+      // Threshold to prevent selecting a vertex that is too far
+      if (Math.sqrt(minDistanceSq) > 0.1) return null;
+
       return { index: closestVertexIndex, distance: Math.sqrt(minDistanceSq) };
   };
 
@@ -94,6 +144,9 @@ export default function Viewport() {
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     rendererRef.current = renderer;
     currentMount.appendChild(renderer.domElement);
+    
+    // Initial state capture
+    setTimeout(() => addHistoryState(captureSceneState()), 100);
 
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
@@ -114,6 +167,9 @@ export default function Viewport() {
 
     const onDraggingChanged = (event) => {
       orbitControls.enabled = !event.value;
+      if (!event.value) { // Drag finished
+          addHistoryState(captureSceneState());
+      }
     };
     transformControls.addEventListener('dragging-changed', onDraggingChanged);
 
@@ -187,17 +243,23 @@ export default function Viewport() {
         const positionAttribute = geometry.getAttribute('position');
 
         if (selectionMode === 'vertex') {
-          const { index: closestVertexIndex, distance } = findClosestVertex(intersects[0], selectedObject);
-          if (closestVertexIndex !== -1 && distance < 0.1) {
-            const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertexIndex);
+          const closestVertex = findClosestVertex(intersects[0], selectedObject);
+          if (closestVertex) {
+            const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertex.index);
             selectedObject.localToWorld(vertexPosition);
-            setSelectedSubComponent({ type: 'vertex', index: closestVertexIndex, position: vertexPosition });
+            setSelectedSubComponent({ type: 'vertex', index: closestVertex.index, position: vertexPosition });
           } else {
             setSelectedSubComponent(null);
           }
         } else if (selectionMode === 'face' && intersects[0].face) {
             const faceIndex = intersects[0].faceIndex;
             const face = intersects[0].face;
+            
+            if (!geometry.index) {
+                console.error("Geometry is non-indexed, cannot select faces.");
+                return;
+            }
+
             const faceIndices = [geometry.index.getX(faceIndex*3), geometry.index.getY(faceIndex*3), geometry.index.getZ(faceIndex*3)];
             
             const originalVertices = faceIndices.map(index => 
@@ -262,6 +324,18 @@ export default function Viewport() {
 
     const handleKeyDown = (event) => {
       if(event.target.tagName.toLowerCase() === 'input' || event.target.tagName.toLowerCase() === 'textarea') return;
+      
+      // Undo/Redo shortcuts
+      if (event.metaKey || event.ctrlKey) {
+        if (event.key.toLowerCase() === 'z') {
+            event.preventDefault();
+            useScene.getState().undo();
+        } else if (event.key.toLowerCase() === 'y') {
+            event.preventDefault();
+            useScene.getState().redo();
+        }
+      }
+      
       switch (event.key.toLowerCase()) {
         case 'w': setTool('translate'); break;
         case 'e': setTool('rotate'); break;
@@ -288,6 +362,7 @@ export default function Viewport() {
       orbitControls.dispose();
       transformControls.dispose();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
 
   // --- Effect for Tool Changes ---
@@ -425,10 +500,12 @@ export default function Viewport() {
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.y = 0.5;
         sceneRef.current.add(mesh);
+        objectsRef.current.set(mesh.uuid, mesh);
       });
+      addHistoryState(captureSceneState());
       clearPrimitivesToAdd();
     }
-  }, [primitivesToAdd, clearPrimitivesToAdd]);
+  }, [primitivesToAdd, clearPrimitivesToAdd, addHistoryState, captureSceneState]);
 
 
   // --- Effect for Importing Files ---
@@ -439,6 +516,17 @@ export default function Viewport() {
       const filename = fileToImport.name.toLowerCase();
 
       const handleLoadedModel = (object, animations) => {
+        
+        object.traverse((child) => {
+          if (child.isMesh) {
+              if (!child.geometry.index) {
+                  child.geometry = child.geometry.toIndexed();
+              }
+              child.geometry.computeVertexNormals();
+              objectsRef.current.set(child.uuid, child);
+          }
+        });
+        
         if (animations && animations.length > 0) {
             const newMixer = new THREE.AnimationMixer(object);
             const newActions = animations.map(clip => newMixer.clipAction(clip));
@@ -454,6 +542,8 @@ export default function Viewport() {
             setIsPlaying(false);
         }
         scene.add(object);
+        objectsRef.current.set(object.uuid, object);
+        addHistoryState(captureSceneState());
       };
 
       reader.onload = (e) => {
@@ -488,7 +578,7 @@ export default function Viewport() {
       
       setFileToImport(null); // Clear after processing
     }
-  }, [fileToImport, setFileToImport, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying]);
+  }, [fileToImport, setFileToImport, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying, addHistoryState, captureSceneState]);
 
 
   // --- Effect for Animation Control ---

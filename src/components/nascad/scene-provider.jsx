@@ -19,6 +19,37 @@ export function SceneProvider({ children }) {
   const [animationActions, setAnimationActions] = useState([]);
   const [mixer, setMixer] = useState(null);
 
+  // Undo/Redo state
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const addHistoryState = useCallback((state) => {
+    // If we are not at the end of history, truncate it
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(state);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [history, historyIndex]);
+
+  const undo = useCallback(() => {
+    if (canUndo) {
+      setIsRestoring(true);
+      setHistoryIndex(prev => prev - 1);
+    }
+  }, [canUndo]);
+
+  const redo = useCallback(() => {
+    if (canRedo) {
+      setIsRestoring(true);
+      setHistoryIndex(prev => prev + 1);
+    }
+  }, [canRedo]);
+
+
   const addPrimitive = useCallback((primitiveType) => {
     setPrimitivesToAdd(prev => [...prev, primitiveType]);
   }, []);
@@ -50,7 +81,16 @@ export function SceneProvider({ children }) {
     animationActions,
     setAnimationActions,
     mixer,
-    setMixer
+    setMixer,
+    history,
+    historyIndex,
+    addHistoryState,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    isRestoring,
+    setIsRestoring,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;
