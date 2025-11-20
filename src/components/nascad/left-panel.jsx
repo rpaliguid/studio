@@ -30,6 +30,8 @@ import { useState } from 'react';
 import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScene } from '@/components/nascad/scene-provider';
+import { cn } from '@/lib/utils';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 
 const SceneItem = ({ node, level = 0 }) => {
@@ -155,25 +157,24 @@ const ToolButton = ({ tool, onClick, currentTool }) => (
                 variant={currentTool === tool.id ? "secondary" : "outline"} 
                 size="icon" 
                 onClick={onClick}
-                className="h-10 w-10"
+                className="h-9 w-9 md:h-10 md:w-10"
             >
-                <tool.icon className="h-5 w-5" />
+                <tool.icon className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
         </TooltipTrigger>
         <TooltipContent><p>{tool.name}</p></TooltipContent>
     </Tooltip>
 );
 
-export default function LeftPanel() {
+function LeftPanelContent() {
   const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObjects, sceneGraph } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
     setSelectedSubComponent(null); // Clear sub-component selection when changing mode
   };
-
   return (
-    <aside className="w-72 border-r border-border bg-card overflow-y-auto">
+    <aside className="w-72 border-r border-border bg-card overflow-y-auto h-full">
       <Accordion type="multiple" defaultValue={['scene-graph', 'toolbox']} className="w-full">
         <AccordionItem value="scene-graph">
           <AccordionTrigger className="px-4 text-sm font-medium">Scene Graph</AccordionTrigger>
@@ -195,8 +196,8 @@ export default function LeftPanel() {
                   {primitives.map(primitive => (
                       <Tooltip key={primitive.name}>
                           <TooltipTrigger asChild>
-                              <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => addPrimitive(primitive.id)}>
-                                  <primitive.icon className="h-6 w-6" />
+                              <Button variant="outline" size="icon" className="h-10 w-10 md:h-12 md:w-12" onClick={() => addPrimitive(primitive.id)}>
+                                  <primitive.icon className="h-5 w-5 md:h-6 md:w-6" />
                               </Button>
                           </TooltipTrigger>
                           <TooltipContent><p>{primitive.name}</p></TooltipContent>
@@ -204,8 +205,8 @@ export default function LeftPanel() {
                   ))}
                   <Tooltip>
                       <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" className="h-12 w-12">
-                              <Plus className="h-6 w-6" />
+                          <Button variant="outline" size="icon" className="h-10 w-10 md:h-12 md:w-12">
+                              <Plus className="h-5 w-5 md:h-6 md:w-6" />
                           </Button>
                       </TooltipTrigger>
                       <TooltipContent><p>Add</p></TooltipContent>
@@ -234,8 +235,8 @@ export default function LeftPanel() {
                   ))}
                    <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-10 w-10" onClick={deleteSelectedObjects}>
-                                <Trash2 className="h-5 w-5" />
+                            <Button variant="outline" size="icon" className="h-9 w-9 md:h-10 md:w-10" onClick={deleteSelectedObjects}>
+                                <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent><p>Delete (Del)</p></TooltipContent>
@@ -258,5 +259,30 @@ export default function LeftPanel() {
         </AccordionItem>
       </Accordion>
     </aside>
+  );
+}
+
+export default function LeftPanel() {
+  const { isLeftPanelOpen, setIsLeftPanelOpen, isMobile } = useScene();
+
+  if (isMobile) {
+    return (
+      <Sheet open={isLeftPanelOpen} onOpenChange={setIsLeftPanelOpen}>
+        <SheetContent side="left" className="p-0 w-72">
+          <LeftPanelContent />
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'fixed top-14 left-0 h-[calc(100vh-3.5rem)] z-10 bg-card transition-transform duration-300 ease-in-out md:block',
+        isLeftPanelOpen ? 'translate-x-0' : '-translate-x-full'
+      )}
+    >
+      <LeftPanelContent />
+    </div>
   );
 }

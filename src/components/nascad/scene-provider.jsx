@@ -1,8 +1,19 @@
 'use client';
 
-import React, { createContext, useState, useContext, useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 
 const SceneContext = createContext(null);
+
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkIsMobile = () => setIsMobile(window.innerWidth < 768);
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
+  return isMobile;
+}
 
 export function SceneProvider({ children }) {
   const [tool, setTool] = useState('translate'); // translate, rotate, scale, extrude, bevel
@@ -29,6 +40,15 @@ export function SceneProvider({ children }) {
 
   // Scene Graph state
   const [sceneGraph, setSceneGraph] = useState([]);
+  
+  // UI State
+  const isMobile = useIsMobile();
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(!isMobile);
+  
+  useEffect(() => {
+    setIsLeftPanelOpen(!isMobile);
+  }, [isMobile]);
+
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -146,6 +166,9 @@ export function SceneProvider({ children }) {
     sceneGraph,
     setSceneGraph,
     getObjectAndAllChildren,
+    isLeftPanelOpen,
+    setIsLeftPanelOpen,
+    isMobile,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;

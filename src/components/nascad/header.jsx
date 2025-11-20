@@ -1,11 +1,11 @@
 'use client';
-import { FileUp, FileDown, Bot, Undo, Redo } from 'lucide-react';
+import { FileUp, FileDown, Bot, Undo, Redo, Play, Pause, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useScene } from './scene-provider';
 import { useRef } from 'react';
 
 export default function Header() {
-  const { setFileToImport, undo, redo, canUndo, canRedo } = useScene();
+  const { setFileToImport, undo, redo, canUndo, canRedo, isPlaying, setIsPlaying, mixer, isLeftPanelOpen, setIsLeftPanelOpen } = useScene();
   const fileInputRef = useRef(null);
 
   const handleImportClick = () => {
@@ -20,19 +20,33 @@ export default function Header() {
     // Reset file input to allow re-importing the same file
     event.target.value = null; 
   };
+  
+  const handlePlayPause = () => {
+    if (mixer) {
+      setIsPlaying(!isPlaying);
+    }
+  };
 
   return (
-    <header className="flex items-center h-14 px-4 shrink-0 border-b border-border z-10 bg-card">
+    <header className="flex items-center h-14 px-2 md:px-4 shrink-0 border-b border-border z-20 bg-card">
       <div className="flex items-center gap-2">
-        <Bot className="w-6 h-6 text-primary" />
-        <h1 className="text-xl font-semibold tracking-tighter text-foreground">Nascad</h1>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}>
+          <PanelLeft className="h-4 w-4" />
+        </Button>
+        <Bot className="w-6 h-6 text-primary hidden sm:block" />
+        <h1 className="text-lg md:text-xl font-semibold tracking-tighter text-foreground">Nascad</h1>
       </div>
-      <div className="flex items-center gap-2 ml-4">
-        <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo}>
+      <div className="flex items-center gap-1 md:gap-2 ml-2 md:ml-4">
+        <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} className="h-8 w-8">
           <Undo className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo}>
+        <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo} className="h-8 w-8">
           <Redo className="h-4 w-4" />
+        </Button>
+      </div>
+       <div className="flex items-center gap-1 md:gap-2 ml-2 md:ml-4">
+        <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!mixer} className="h-8 w-8">
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
         </Button>
       </div>
       <div className="flex items-center gap-2 ml-auto">
@@ -45,11 +59,11 @@ export default function Header() {
         />
         <Button variant="outline" size="sm" onClick={handleImportClick}>
           <FileUp className="mr-2 h-4 w-4" />
-          Import
+          <span className="hidden sm:inline">Import</span>
         </Button>
         <Button variant="outline" size="sm">
           <FileDown className="mr-2 h-4 w-4" />
-          Export
+           <span className="hidden sm:inline">Export</span>
         </Button>
       </div>
     </header>

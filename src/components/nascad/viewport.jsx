@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback }from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { useScene } from './scene-provider';
 
 export default function Viewport() {
@@ -65,7 +66,7 @@ export default function Viewport() {
 
     const graph = [];
     const processedUuids = new Set();
-    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'Directional Light', 'Ambient Light']);
+    const internalObjectNames = new Set(['gridHelper', 'Main Camera']);
 
     const buildNode = (object) => {
       if (!object || processedUuids.has(object.uuid) || internalObjectNames.has(object.name) || object.isTransformControls || object.isLine) return null;
@@ -269,7 +270,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2d2d2d);
+    scene.background = new THREE.Color(0xa0c8e0);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -282,6 +283,9 @@ export default function Viewport() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
     currentMount.appendChild(renderer.domElement);
 
@@ -290,7 +294,7 @@ export default function Viewport() {
     orbitControls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.PAN,
-      RIGHT: THREE.MOUSE.PAN, // Keep right-click as pan for convenience
+      RIGHT: THREE.MOUSE.PAN,
     };
     orbitControlsRef.current = orbitControls;
 
@@ -298,18 +302,15 @@ export default function Viewport() {
     scene.add(transformControls);
     transformControlsRef.current = transformControls;
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x444444);
+    const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    ambientLight.name = "Ambient Light";
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    directionalLight.position.set(5, 10, 7.5);
-    directionalLight.name = "Directional Light";
-    scene.add(directionalLight);
-    objectsRef.current.set(directionalLight.uuid, directionalLight);
+    // HDR Lighting
+    new RGBELoader().load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/empty_warehouse_01_1k.hdr', (texture) => {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.environment = texture;
+    });
 
     const onDraggingChanged = (event) => {
       orbitControls.enabled = !event.value;
