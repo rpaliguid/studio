@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
   Box,
   Circle,
@@ -45,19 +46,23 @@ const SceneItem = ({ name, children, level = 0 }) => {
   );
 };
 
-const tools = [
-    { id: 'translate', icon: Move, name: 'Move' },
-    { id: 'rotate', icon: RotateCw, name: 'Rotate' },
-    { id: 'scale', icon: Scale, name: 'Scale' },
-    { id: 'extrude', icon: GitCommitHorizontal, name: 'Extrude' },
-    { id: 'bevel', icon: Scissors, name: 'Bevel' },
-];
-
 const selectionModes = [
+    { id: 'object', icon: Box, name: 'Object Select' },
     { id: 'vertex', icon: VertexIcon, name: 'Vertex Select' },
     { id: 'edge', icon: EdgeIcon, name: 'Edge Select' },
     { id: 'face', icon: FaceIcon, name: 'Face Select' },
-]
+];
+
+const transformTools = [
+    { id: 'translate', icon: Move, name: 'Move (W)' },
+    { id: 'rotate', icon: RotateCw, name: 'Rotate (E)' },
+    { id: 'scale', icon: Scale, name: 'Scale (R)' },
+];
+
+const modelingTools = [
+    { id: 'extrude', icon: GitCommitHorizontal, name: 'Extrude' },
+    { id: 'bevel', icon: Scissors, name: 'Bevel' },
+];
 
 const primitives = [
     { id: 'cube', icon: Box, name: 'Cube' },
@@ -65,8 +70,24 @@ const primitives = [
     { id: 'cylinder', icon: Database, name: 'Cylinder' },
 ];
 
+const ToolButton = ({ tool, onClick, currentTool }) => (
+    <Tooltip>
+        <TooltipTrigger asChild>
+            <Button 
+                variant={currentTool === tool.id ? "secondary" : "outline"} 
+                size="icon" 
+                onClick={onClick}
+            >
+                <tool.icon className="h-5 w-5" />
+            </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>{tool.name}</p></TooltipContent>
+    </Tooltip>
+);
+
 export default function LeftPanel() {
-  const { setTool, setSelectionMode, addPrimitive } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive } = useScene();
+
   return (
     <aside className="w-72 border-r border-border bg-card overflow-y-auto">
       <Accordion type="multiple" defaultValue={['scene-graph', 'toolbox']} className="w-full">
@@ -89,51 +110,57 @@ export default function LeftPanel() {
         </AccordionItem>
         <AccordionItem value="toolbox">
           <AccordionTrigger className="px-4 text-sm font-medium">Toolbox</AccordionTrigger>
-          <AccordionContent className="px-4">
+          <AccordionContent className="px-4 space-y-4">
             <TooltipProvider>
-              <div className="grid grid-cols-4 gap-2">
-                {primitives.map(primitive => (
-                    <Tooltip key={primitive.name}>
-                        <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => addPrimitive(primitive.id)}>
-                                <primitive.icon className="h-6 w-6" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{primitive.name}</p></TooltipContent>
-                    </Tooltip>
-                ))}
-                 <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-12 w-12">
-                            <Plus className="h-6 w-6" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Add</p></TooltipContent>
-                </Tooltip>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Primitives</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {primitives.map(primitive => (
+                      <Tooltip key={primitive.name}>
+                          <TooltipTrigger asChild>
+                              <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => addPrimitive(primitive.id)}>
+                                  <primitive.icon className="h-6 w-6" />
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>{primitive.name}</p></TooltipContent>
+                      </Tooltip>
+                  ))}
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                          <Button variant="outline" size="icon" className="h-12 w-12">
+                              <Plus className="h-6 w-6" />
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Add</p></TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
-              <div className="grid grid-cols-4 gap-2 mt-4">
-                 {selectionModes.map(mode => (
-                     <Tooltip key={mode.name}>
-                        <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" onClick={() => setSelectionMode(mode.id)}>
-                                <mode.icon className="h-5 w-5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{mode.name}</p></TooltipContent>
-                    </Tooltip>
-                ))}
+
+              <Separator />
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Selection Mode</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {selectionModes.map(mode => (
+                      <ToolButton key={mode.id} tool={mode} onClick={() => setSelectionMode(mode.id)} currentTool={selectionMode} />
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                {tools.map(tool => (
-                     <Tooltip key={tool.name}>
-                        <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" onClick={() => setTool(tool.id)}>
-                                <tool.icon className="h-5 w-5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{tool.name}</p></TooltipContent>
-                    </Tooltip>
-                ))}
+
+              <Separator />
+              
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Tools</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {transformTools.map(t => (
+                      <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  {modelingTools.map(t => (
+                       <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
+                  ))}
+                </div>
               </div>
             </TooltipProvider>
           </AccordionContent>

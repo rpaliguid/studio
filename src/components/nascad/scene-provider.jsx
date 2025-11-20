@@ -5,7 +5,7 @@ import React, { createContext, useState, useContext, useCallback } from 'react';
 const SceneContext = createContext(null);
 
 export function SceneProvider({ children }) {
-  const [tool, setTool] = useState('translate'); // translate, rotate, scale
+  const [tool, setTool] = useState('translate'); // translate, rotate, scale, extrude, bevel
   const [selectionMode, setSelectionMode] = useState('object'); // object, vertex, edge, face
   const [selectedObject, setSelectedObject] = useState(null);
   const [primitivesToAdd, setPrimitivesToAdd] = useState([]);
@@ -18,10 +18,24 @@ export function SceneProvider({ children }) {
   const clearPrimitivesToAdd = useCallback(() => {
     setPrimitivesToAdd([]);
   }, []);
+  
+  const handleToolChange = (newTool) => {
+    const transformTools = ['translate', 'rotate', 'scale'];
+    if (transformTools.includes(newTool)) {
+      setTool(newTool);
+    } else {
+      // For instant-action tools like extrude/bevel
+      // We can set it, and the viewport can listen for it, perform the action, and reset the tool.
+      setTool(newTool); 
+      // Optionally, reset to a default tool immediately after
+      // setTimeout(() => setTool('translate'), 100);
+    }
+  };
+
 
   const value = {
     tool,
-    setTool,
+    setTool: handleToolChange,
     selectionMode,
     setSelectionMode,
     selectedObject,
