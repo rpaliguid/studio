@@ -42,6 +42,8 @@ export default function Viewport() {
     setObjectsToDelete,
     deleteSelectedObjects,
     setSceneGraph,
+    undo,
+    redo,
   } = useScene();
   
   const sceneRef = useRef(null);
@@ -477,14 +479,12 @@ export default function Viewport() {
     const handleKeyDown = (event) => {
       if(event.target.tagName.toLowerCase() === 'input' || event.target.tagName.toLowerCase() === 'textarea') return;
       
-      const state = useScene.getState();
-      
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
             event.preventDefault();
-            state.undo();
+            undo();
       } else if ((event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) {
             event.preventDefault();
-            state.redo();
+            redo();
       }
       
       switch (event.key.toLowerCase()) {
