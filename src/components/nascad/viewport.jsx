@@ -82,6 +82,7 @@ export default function Viewport() {
     const mouse = new THREE.Vector2();
 
     const onClick = (event) => {
+      if (transformControls.dragging) return;
       event.preventDefault();
 
       const rect = renderer.domElement.getBoundingClientRect();
@@ -94,7 +95,7 @@ export default function Viewport() {
 
       if (intersects.length > 0) {
         const firstIntersected = intersects[0].object;
-        if (firstIntersected !== outlineRef.current) {
+        if (firstIntersected !== selectedObject) {
           setSelectedObject(firstIntersected);
         }
       } else {
@@ -107,6 +108,14 @@ export default function Viewport() {
     const animate = () => {
       requestAnimationFrame(animate);
       orbitControls.update();
+      
+      // Keep outline in sync with object
+      if (selectedObject && outlineRef.current) {
+        outlineRef.current.position.copy(selectedObject.position);
+        outlineRef.current.quaternion.copy(selectedObject.quaternion);
+        outlineRef.current.scale.copy(selectedObject.scale);
+      }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -142,11 +151,11 @@ export default function Viewport() {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
       currentMount.removeEventListener('click', onClick);
-      if (renderer.domElement.parentElement === currentMount) {
+      if (renderer.domElement && renderer.domElement.parentElement === currentMount) {
         currentMount.removeChild(renderer.domElement);
       }
-      orbitControls.dispose();
-      transformControls.dispose();
+      if (orbitControls) orbitControls.dispose();
+      if (transformControls) transformControls.dispose();
     };
   }, [setTool, setSelectedObject]);
 
@@ -177,15 +186,17 @@ export default function Viewport() {
       transformControls.attach(selectedObject);
       transformControls.visible = true;
 
-      // Create outline
-      const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.BackSide });
-      const outlineMesh = new THREE.Mesh(selectedObject.geometry, outlineMaterial);
-      outlineMesh.position.copy(selectedObject.position);
-      outlineMesh.rotation.copy(selectedObject.rotation);
-      outlineMesh.scale.copy(selectedObject.scale);
-      outlineMesh.scale.multiplyScalar(1.05); // Make it slightly larger
-      scene.add(outlineMesh);
-      outlineRef.current = outlineMesh;
+      // Create edges highlight
+      const edges = new THREE.EdgesGeometry(selectedObject.geometry);
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
+      const lineSegments = new THREE.LineSegments(edges, lineMaterial);
+      
+      lineSegments.position.copy(selectedObject.position);
+      lineSegments.quaternion.copy(selectedObject.quaternion);
+      lineSegments.scale.copy(selectedObject.scale);
+      
+      scene.add(lineSegments);
+      outlineRef.current = lineSegments;
 
     } else {
       transformControls.detach();
@@ -199,7 +210,7 @@ export default function Viewport() {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
         let geometry;
-        const material = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+        const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.1, roughness: 0.5 });
         
         switch (primitiveType) {
           case 'cube':
@@ -216,7 +227,7 @@ export default function Viewport() {
         }
         
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.y = 0.5;
+        mesh.position.y = 0.5; // Place on top of the grid
         sceneRef.current.add(mesh);
       });
       clearPrimitivesToAdd();
