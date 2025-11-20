@@ -8,12 +8,12 @@ import {
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import {
-  Cube,
+  Box,
   Circle,
-  Cylinder,
+  Database,
   Move,
   Scale,
-  Rotate,
+  RotateCw,
   GitCommitHorizontal,
   Scissors,
   Eye,
@@ -46,7 +46,7 @@ const SceneItem = ({ name, children, level = 0 }) => {
 
 const tools = [
     { icon: Move, name: 'Move' },
-    { icon: Rotate, name: 'Rotate' },
+    { icon: RotateCw, name: 'Rotate' },
     { icon: Scale, name: 'Scale' },
     { icon: VertexIcon, name: 'Vertex Select' },
     { icon: EdgeIcon, name: 'Edge Select' },
@@ -56,9 +56,9 @@ const tools = [
 ];
 
 const primitives = [
-    { icon: Cube, name: 'Cube' },
+    { icon: Box, name: 'Cube' },
     { icon: Circle, name: 'Sphere' },
-    { icon: Cylinder, name: 'Cylinder' },
+    { icon: Database, name: 'Cylinder' },
     { icon: Plus, name: 'Add' },
 ];
 
