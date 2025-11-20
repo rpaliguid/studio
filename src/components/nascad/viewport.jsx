@@ -271,7 +271,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
+    scene.background = new THREE.Color(0xadb9d4);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -296,7 +296,7 @@ export default function Viewport() {
     orbitControls.enableDamping = true;
     orbitControls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
-      MIDDLE: THREE.MOUSE.DOLLY,
+      MIDDLE: THREE.MOUSE.PAN,
       RIGHT: THREE.MOUSE.PAN,
     };
     orbitControlsRef.current = orbitControls;
@@ -316,7 +316,7 @@ export default function Viewport() {
     scene.add(floor);
 
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0xe5e7eb, 0xe5e7eb);
+    const gridHelper = new THREE.GridHelper(50, 50, 0xe0e0e0, 0xe0e0e0);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
