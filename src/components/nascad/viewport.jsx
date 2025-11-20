@@ -94,7 +94,9 @@ export default function Viewport() {
 
       if (intersects.length > 0) {
         const firstIntersected = intersects[0].object;
-        setSelectedObject(firstIntersected);
+        if (firstIntersected !== outlineRef.current) {
+          setSelectedObject(firstIntersected);
+        }
       } else {
         setSelectedObject(null);
       }
@@ -160,6 +162,8 @@ export default function Viewport() {
   useEffect(() => {
     const scene = sceneRef.current;
     const transformControls = transformControlsRef.current;
+
+    if (!scene || !transformControls) return;
     
     // Cleanup previous outline
     if (outlineRef.current) {
@@ -169,12 +173,12 @@ export default function Viewport() {
         outlineRef.current = null;
     }
 
-    if (selectedObject && transformControls) {
+    if (selectedObject) {
       transformControls.attach(selectedObject);
       transformControls.visible = true;
 
       // Create outline
-      const outlineMaterial = new THREE.MeshBasicMaterial({ color: 'cyan', side: THREE.BackSide });
+      const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.BackSide });
       const outlineMesh = new THREE.Mesh(selectedObject.geometry, outlineMaterial);
       outlineMesh.position.copy(selectedObject.position);
       outlineMesh.rotation.copy(selectedObject.rotation);
@@ -183,7 +187,7 @@ export default function Viewport() {
       scene.add(outlineMesh);
       outlineRef.current = outlineMesh;
 
-    } else if (transformControls) {
+    } else {
       transformControls.detach();
       transformControls.visible = false;
     }
