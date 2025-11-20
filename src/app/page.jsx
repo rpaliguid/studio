@@ -11,7 +11,7 @@ import SplashScreen from '@/components/nascad/splash-screen';
 function NascadLayout() {
   const { isLeftPanelOpen } = useScene();
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground font-body antialiased dark">
+    <div className="flex flex-col h-screen bg-background text-foreground font-body antialiased">
       <Header />
       <div className="flex flex-1 border-t border-border overflow-hidden">
         <LeftPanel />

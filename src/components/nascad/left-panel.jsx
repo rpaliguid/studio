@@ -100,7 +100,7 @@ const SceneItem = ({ node, level = 0 }) => {
   return (
     <div>
       <div 
-        className={`flex items-center justify-between hover:bg-muted/50 rounded-md pr-2 cursor-pointer ${isSelected ? 'bg-primary/20' : ''}`}
+        className={`flex items-center justify-between hover:bg-muted/50 rounded-md pr-2 cursor-pointer ${isSelected ? 'bg-primary/20 text-primary' : ''}`}
         onClick={handleSelect}
         style={{ paddingLeft: `${level * 1}rem` }}
       >

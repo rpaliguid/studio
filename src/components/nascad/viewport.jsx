@@ -71,9 +71,7 @@ export default function Viewport() {
     const buildNode = (object) => {
       if (!object || processedUuids.has(object.uuid) || internalObjectNames.has(object.name) || object.isTransformControls || object.isLine) return null;
       
-      // We only want to show user-imported/created objects at the top level
       if (object.parent === sceneRef.current && (object.isLight || object.isCamera)) {
-          // Keep the check, but it should not match default lights/cameras now
           if (internalObjectNames.has(object.name)) return null;
       }
       
@@ -270,7 +268,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a192f);
+    scene.background = new THREE.Color(0xdbeafe); // Light blue background
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -302,7 +300,7 @@ export default function Viewport() {
     scene.add(transformControls);
     transformControlsRef.current = transformControls;
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x888888);
+    const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
@@ -624,7 +622,7 @@ export default function Viewport() {
         if (!objectToOutline.isMesh) return;
 
         const edges = new THREE.EdgesGeometry(objectToOutline.geometry, 1);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffa500, linewidth: 2, depthTest: false });
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x1d4ed8, linewidth: 2, depthTest: false });
         const objectOutline = new THREE.LineSegments(edges, lineMaterial);
         objectOutline.matrix.copy(objectToOutline.matrixWorld);
         objectOutline.matrixAutoUpdate = false;
@@ -656,7 +654,7 @@ export default function Viewport() {
       if (selectedSubComponent.type === 'vertex') {
         const vertexVisual = new THREE.Mesh(
             new THREE.SphereGeometry(0.05),
-            new THREE.MeshBasicMaterial({ color: 0xffa500, transparent: false, depthTest: false })
+            new THREE.MeshBasicMaterial({ color: 0x1d4ed8, transparent: false, depthTest: false })
         );
         vertexVisual.position.copy(selectedSubComponent.position);
         vertexVisual.renderOrder = 1; // Render on top
@@ -680,7 +678,7 @@ export default function Viewport() {
         highlightGeometry.setAttribute('position', new THREE.Float32BufferAttribute(faceVertices, 3));
         highlightGeometry.setIndex([0,1,2]); // Assuming triangular faces
         
-        const faceVisual = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffa500, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: false }));
+        const faceVisual = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0x1d4ed8, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: false }));
         
         faceVisual.matrix.copy(actualObject.matrixWorld);
         faceVisual.matrixAutoUpdate = false;
