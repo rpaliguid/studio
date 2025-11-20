@@ -271,7 +271,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x4b5563);
+    scene.background = new THREE.Color(0x87ceeb);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -296,7 +296,7 @@ export default function Viewport() {
     orbitControls.enableDamping = true;
     orbitControls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
-      MIDDLE: THREE.MOUSE.PAN,
+      MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.PAN,
     };
     orbitControlsRef.current = orbitControls;
@@ -321,8 +321,7 @@ export default function Viewport() {
     scene.add(gridHelper);
 
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
     directionalLight.position.set(10, 20, 5);
@@ -758,11 +757,25 @@ export default function Viewport() {
   useEffect(() => {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
+        const loader = new GLTFLoader();
+        
         if (primitiveType === 'torus') {
-          const loader = new GLTFLoader();
           loader.load('https://cdn.glitch.me/68b2a272-e034-45d6-8832-c1161245a4a5/torus.glb', (gltf) => {
-            const object = gltf.scene;
-            handleLoadedModel(object, [], primitiveType);
+            handleLoadedModel(gltf.scene, [], primitiveType);
+          });
+          return;
+        }
+
+        if (primitiveType === 'robotic-arm') {
+          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/Robotic%20Arm.glb', (gltf) => {
+            handleLoadedModel(gltf.scene, gltf.animations, 'Robotic Arm');
+          });
+          return;
+        }
+
+        if (primitiveType === 'gun') {
+          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/Gun.glb', (gltf) => {
+            handleLoadedModel(gltf.scene, gltf.animations, 'Gun');
           });
           return;
         }
