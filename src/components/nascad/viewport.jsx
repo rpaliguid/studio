@@ -7,8 +7,8 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { useScene } from './scene-provider';
 
 // Constants for enabling/disabling layers for raycasting
-const ENABLE_ALL_LAYERS = 10;
-const DISABLE_ALL_LAYERS = 11;
+const ENABLE_ALL_LAYERS = 0; // Default layer
+const DISABLE_ALL_LAYERS = 1;
 
 
 export default function Viewport() {
@@ -71,11 +71,13 @@ export default function Viewport() {
     });
 
     transformControls.addEventListener('objectChange', () => {
-        if (selectedSubComponent && selectedObject) {
+        if (selectedSubComponent && selectedObject && selectedSubComponent.type === 'vertex') {
             const positionAttribute = selectedObject.geometry.getAttribute('position');
             const helper = subComponentHelperRef.current;
             if(helper){
-                positionAttribute.setXYZ(selectedSubComponent.index, helper.position.x, helper.position.y, helper.position.z);
+                // transform helper world position to local position of the selected object
+                const localPosition = selectedObject.worldToLocal(helper.position.clone());
+                positionAttribute.setXYZ(selectedSubComponent.index, localPosition.x, localPosition.y, localPosition.z);
                 positionAttribute.needsUpdate = true;
                 selectedObject.geometry.computeVertexNormals();
             }
@@ -128,21 +130,25 @@ export default function Viewport() {
         let minDistance = Infinity;
 
         // Make selectedObject invisible to raycaster for a moment
-        selectedObject.layers.set(DISABLE_ALL_LAYERS);
+        selectedObject.layers.disable(ENABLE_ALL_LAYERS);
+        selectedObject.layers.enable(DISABLE_ALL_LAYERS);
 
         for (let i = 0; i < positionAttribute.count; i++) {
             const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
             selectedObject.localToWorld(vertex); // transform vertex to world space
             const distance = raycaster.ray.distanceToPoint(vertex);
+            
+            // Adjust threshold for easier selection
             if (distance < 0.1 && distance < minDistance) { 
                 minDistance = distance;
-                closestVertex = { index: i, position: vertex };
+                closestVertex = { index: i, position: vertex.clone() };
             }
         }
         
         // Make selectedObject visible again
-        selectedObject.layers.set(ENABLE_ALL_LAYERS);
-
+        selectedObject.layers.enable(ENABLE_ALL_LAYERS);
+        selectedObject.layers.disable(DISABLE_ALL_LAYERS);
+        
         if (closestVertex) {
             setSelectedSubComponent({ type: 'vertex', index: closestVertex.index, position: closestVertex.position });
         } else {
@@ -157,12 +163,16 @@ export default function Viewport() {
       requestAnimationFrame(animate);
       orbitControls.update();
       
+      // Update outline position in real-time
       if (selectedObject && outlineRef.current) {
         outlineRef.current.position.copy(selectedObject.position);
         outlineRef.current.quaternion.copy(selectedObject.quaternion);
         outlineRef.current.scale.copy(selectedObject.scale);
+        if (selectedObject.geometry) {
+            outlineRef.current.geometry.copy(selectedObject.geometry);
+        }
       }
-
+      
       renderer.render(scene, camera);
     };
     animate();
@@ -218,14 +228,22 @@ export default function Viewport() {
     if (outlineRef.current) {
         scene.remove(outlineRef.current);
         outlineRef.current.geometry.dispose();
-        outlineRef.current.material.dispose();
+        if(outlineRef.current.material) {
+            if (Array.isArray(outlineRef.current.material)) {
+                outlineRef.current.material.forEach(m => m.dispose());
+            } else {
+                outlineRef.current.material.dispose();
+            }
+        }
         outlineRef.current = null;
     }
     
     if(subComponentHelperRef.current){
         scene.remove(subComponentHelperRef.current);
         subComponentHelperRef.current.geometry.dispose();
-        subComponentHelperRef.current.material.dispose();
+        if (subComponentHelperRef.current.material) {
+           subComponentHelperRef.current.material.dispose();
+        }
         subComponentHelperRef.current = null;
     }
 
@@ -237,12 +255,11 @@ export default function Viewport() {
         vertexSphere.name = 'subComponentHelper';
         vertexSphere.position.copy(selectedSubComponent.position);
 
-        if (vertexSphere) {
-            scene.add(vertexSphere);
-            subComponentHelperRef.current = vertexSphere;
-            transformControls.attach(vertexSphere);
-            transformControls.visible = true;
-        }
+        scene.add(vertexSphere);
+        subComponentHelperRef.current = vertexSphere;
+        transformControls.attach(vertexSphere);
+        transformControls.visible = true;
+
         if (outlineRef.current) {
              scene.remove(outlineRef.current);
         }
@@ -251,18 +268,19 @@ export default function Viewport() {
       transformControls.attach(selectedObject);
       transformControls.visible = true;
 
+      // Create a new EdgesGeometry from the selected object's geometry
       const edges = new THREE.EdgesGeometry(selectedObject.geometry);
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
       const lineSegments = new THREE.LineSegments(edges, lineMaterial);
       
+      // Initially position the outline correctly
       lineSegments.position.copy(selectedObject.position);
       lineSegments.quaternion.copy(selectedObject.quaternion);
       lineSegments.scale.copy(selectedObject.scale);
       
-      if (lineSegments) {
-        scene.add(lineSegments);
-        outlineRef.current = lineSegments;
-      }
+      scene.add(lineSegments);
+      outlineRef.current = lineSegments;
+      
     }
     else {
       if (transformControls.object) {
