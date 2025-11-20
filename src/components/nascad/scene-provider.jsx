@@ -20,20 +20,24 @@ export function SceneProvider({ children }) {
   const [mixer, setMixer] = useState(null);
 
   // Undo/Redo state
-  const [history, setHistory] = useState([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState([[]]); // Initial state is an empty scene
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [isRestoring, setIsRestoring] = useState(false);
+
+  // Delete state
+  const [objectToDelete, setObjectToDelete] = useState(null);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-
+  
   const addHistoryState = useCallback((state) => {
+    if (isRestoring) return;
     // If we are not at the end of history, truncate it
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(state);
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
-  }, [history, historyIndex]);
+  }, [history, historyIndex, isRestoring]);
 
   const undo = useCallback(() => {
     if (canUndo) {
@@ -57,6 +61,13 @@ export function SceneProvider({ children }) {
   const clearPrimitivesToAdd = useCallback(() => {
     setPrimitivesToAdd([]);
   }, []);
+
+  const deleteSelectedObject = useCallback(() => {
+    if (selectedObject) {
+      setObjectToDelete(selectedObject);
+    }
+  }, [selectedObject]);
+
 
   const value = {
     tool,
@@ -91,6 +102,9 @@ export function SceneProvider({ children }) {
     canRedo,
     isRestoring,
     setIsRestoring,
+    objectToDelete,
+    setObjectToDelete,
+    deleteSelectedObject,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;

@@ -20,7 +20,8 @@ import {
   Eye,
   EyeOff,
   LayoutGrid,
-  Plus
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
@@ -87,7 +88,7 @@ const ToolButton = ({ tool, onClick, currentTool }) => (
 );
 
 export default function LeftPanel() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObject } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
@@ -161,6 +162,14 @@ export default function LeftPanel() {
                   {transformTools.map(t => (
                       <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
                   ))}
+                   <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-10 w-10" onClick={deleteSelectedObject}>
+                                <Trash2 className="h-5 w-5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Delete (Del)</p></TooltipContent>
+                    </Tooltip>
                 </div>
               </div>
 
