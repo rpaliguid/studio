@@ -48,18 +48,20 @@ const tools = [
     { icon: Move, name: 'Move' },
     { icon: RotateCw, name: 'Rotate' },
     { icon: Scale, name: 'Scale' },
-    { icon: VertexIcon, name: 'Vertex Select' },
-    { icon: EdgeIcon, name: 'Edge Select' },
-    { icon: FaceIcon, name: 'Face Select' },
     { icon: GitCommitHorizontal, name: 'Extrude' },
     { icon: Scissors, name: 'Bevel' },
 ];
+
+const selectionModes = [
+    { icon: VertexIcon, name: 'Vertex Select' },
+    { icon: EdgeIcon, name: 'Edge Select' },
+    { icon: FaceIcon, name: 'Face Select' },
+]
 
 const primitives = [
     { icon: Box, name: 'Cube' },
     { icon: Circle, name: 'Sphere' },
     { icon: Database, name: 'Cylinder' },
-    { icon: Plus, name: 'Add' },
 ];
 
 export default function LeftPanel() {
@@ -98,8 +100,28 @@ export default function LeftPanel() {
                         <TooltipContent><p>{tool.name}</p></TooltipContent>
                     </Tooltip>
                 ))}
+                 <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-12 w-12">
+                            <Plus className="h-6 w-6" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Add</p></TooltipContent>
+                </Tooltip>
               </div>
               <div className="grid grid-cols-4 gap-2 mt-4">
+                 {selectionModes.map(tool => (
+                     <Tooltip key={tool.name}>
+                        <TooltipTrigger asChild>
+                            <Button variant="outline" size="icon">
+                                <tool.icon className="h-5 w-5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>{tool.name}</p></TooltipContent>
+                    </Tooltip>
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-2">
                 {tools.map(tool => (
                      <Tooltip key={tool.name}>
                         <TooltipTrigger asChild>
