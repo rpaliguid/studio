@@ -725,7 +725,11 @@ export default function Viewport() {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
         let geometry;
-        const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.1, roughness: 0.5 });
+        const material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+          metalness: 0.1,
+          roughness: 0.5
+        });
         
         switch (primitiveType) {
           case 'cube':
