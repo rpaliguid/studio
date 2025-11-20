@@ -6,7 +6,7 @@ import { SceneProvider } from '@/components/nascad/scene-provider';
 export default function NascadEditor() {
   return (
     <SceneProvider>
-      <div className="flex flex-col h-screen bg-background text-foreground font-body antialiased">
+      <div className="flex flex-col h-screen bg-background text-foreground font-body antialiased dark">
         <Header />
         <div className="flex flex-1 border-t border-border overflow-hidden">
           <LeftPanel />

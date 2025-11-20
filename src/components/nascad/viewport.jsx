@@ -101,7 +101,20 @@ export default function Viewport() {
 
     // --- Basic Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f0f0);
+    
+    // Create a gradient background
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    const context = canvas.getContext('2d');
+    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#3a4a5a'); // Darker navy/grey
+    gradient.addColorStop(1, '#1c2530'); // Even darker
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const backgroundTexture = new THREE.CanvasTexture(canvas);
+    scene.background = backgroundTexture;
+
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -123,7 +136,7 @@ export default function Viewport() {
     transformControlsRef.current = transformControls;
 
     // --- Scene Content ---
-    const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
+    const gridHelper = new THREE.GridHelper(50, 50, 0x556677, 0x445566);
     scene.add(gridHelper);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -448,13 +461,13 @@ export default function Viewport() {
         
         // This is crucial for sub-component editing: ensure geometry is indexed.
         if (!geometry.index) {
-          const nonIndexed = geometry.toNonIndexed();
-          const position = nonIndexed.getAttribute('position');
+          const position = geometry.getAttribute('position');
           const vertexCount = position.count;
-          const indices = Array.from({ length: vertexCount / 3 }, (_, i) => [i * 3, i * 3 + 1, i * 3 + 2]).flat();
-          geometry = new THREE.BufferGeometry();
-          geometry.setAttribute('position', position);
-          geometry.setIndex(indices);
+          const indices = new Uint32Array(vertexCount);
+          for (let i = 0; i < vertexCount; i++) {
+              indices[i] = i;
+          }
+          geometry.setIndex(new THREE.BufferAttribute(indices, 1));
         }
         
         geometry.computeVertexNormals();
