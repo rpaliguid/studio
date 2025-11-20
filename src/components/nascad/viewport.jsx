@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -11,18 +11,23 @@ export default function Viewport() {
   const {
     tool,
     setTool,
+    selectionMode,
     selectedObject,
     setSelectedObject,
     primitivesToAdd,
     clearPrimitivesToAdd,
   } = useScene();
   
+  const [selectedVertex, setSelectedVertex] = useState(null);
+
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
   const orbitControlsRef = useRef(null);
   const transformControlsRef = useRef(null);
   const outlineRef = useRef(null);
+  const vertexHelperRef = useRef(null);
+
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -49,11 +54,6 @@ export default function Viewport() {
     // Orbit Controls (camera)
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
-    orbitControls.dampingFactor = 0.05;
-    orbitControls.screenSpacePanning = true; 
-    orbitControls.minDistance = 2;
-    orbitControls.maxDistance = 50;
-    orbitControls.maxPolarAngle = Math.PI; 
     orbitControlsRef.current = orbitControls;
 
     // Transform Controls (gizmo)
@@ -63,6 +63,15 @@ export default function Viewport() {
 
     transformControls.addEventListener('dragging-changed', function (event) {
       orbitControls.enabled = !event.value;
+    });
+
+    transformControls.addEventListener('objectChange', () => {
+        if (selectedVertex && selectedObject) {
+            const positionAttribute = selectedObject.geometry.getAttribute('position');
+            positionAttribute.setXYZ(selectedVertex.index, selectedVertex.object.position.x, selectedVertex.object.position.y, selectedVertex.object.position.z);
+            positionAttribute.needsUpdate = true;
+            selectedObject.geometry.computeVertexNormals();
+        }
     });
 
     // Floor Grid
@@ -91,15 +100,45 @@ export default function Viewport() {
 
       raycaster.setFromCamera(mouse, camera);
 
-      const intersects = raycaster.intersectObjects(scene.children.filter(c => c.isMesh));
+      const meshes = scene.children.filter(c => c.isMesh);
+      const intersects = raycaster.intersectObjects(meshes);
 
-      if (intersects.length > 0) {
-        const firstIntersected = intersects[0].object;
-        if (firstIntersected !== selectedObject) {
-          setSelectedObject(firstIntersected);
+      if (selectionMode === 'object') {
+        if (intersects.length > 0) {
+          const firstIntersected = intersects[0].object;
+          if (firstIntersected !== selectedObject) {
+            setSelectedObject(firstIntersected);
+            setSelectedVertex(null); 
+          }
+        } else {
+          setSelectedObject(null);
+          setSelectedVertex(null);
         }
-      } else {
-        setSelectedObject(null);
+      } else if (selectionMode === 'vertex' && selectedObject) {
+        const positionAttribute = selectedObject.geometry.getAttribute('position');
+        let closestVertex = null;
+        let minDistance = Infinity;
+
+        for (let i = 0; i < positionAttribute.count; i++) {
+            const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+            selectedObject.localToWorld(vertex);
+            const distance = raycaster.ray.distanceToPoint(vertex);
+            if (distance < 0.1 && distance < minDistance) { 
+                minDistance = distance;
+                closestVertex = { index: i, position: vertex };
+            }
+        }
+
+        if (closestVertex) {
+            const vertexSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            );
+            vertexSphere.position.copy(closestVertex.position);
+            setSelectedVertex({ object: vertexSphere, index: closestVertex.index });
+        } else {
+            setSelectedVertex(null);
+        }
       }
     };
     currentMount.addEventListener('click', onClick);
@@ -109,7 +148,6 @@ export default function Viewport() {
       requestAnimationFrame(animate);
       orbitControls.update();
       
-      // Keep outline in sync with object
       if (selectedObject && outlineRef.current) {
         outlineRef.current.position.copy(selectedObject.position);
         outlineRef.current.quaternion.copy(selectedObject.quaternion);
@@ -130,18 +168,11 @@ export default function Viewport() {
     };
     window.addEventListener('resize', handleResize);
 
-    // Handle keyboard shortcuts for transform modes
     const handleKeyDown = (event) => {
       switch (event.key.toLowerCase()) {
-        case 'w':
-          setTool('translate');
-          break;
-        case 'e':
-          setTool('rotate');
-          break;
-        case 'r':
-          setTool('scale');
-          break;
+        case 'w': setTool('translate'); break;
+        case 'e': setTool('rotate'); break;
+        case 'r': setTool('scale'); break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -154,10 +185,10 @@ export default function Viewport() {
       if (renderer.domElement && renderer.domElement.parentElement === currentMount) {
         currentMount.removeChild(renderer.domElement);
       }
-      if (orbitControls) orbitControls.dispose();
-      if (transformControls) transformControls.dispose();
+      orbitControls.dispose();
+      transformControls.dispose();
     };
-  }, [setTool, setSelectedObject]);
+  }, []);
 
 
   // Handle tool change
@@ -174,19 +205,22 @@ export default function Viewport() {
 
     if (!scene || !transformControls) return;
     
-    // Cleanup previous outline
     if (outlineRef.current) {
         scene.remove(outlineRef.current);
         outlineRef.current.geometry.dispose();
         outlineRef.current.material.dispose();
         outlineRef.current = null;
     }
+    
+    if(vertexHelperRef.current){
+        scene.remove(vertexHelperRef.current);
+        vertexHelperRef.current = null;
+    }
 
-    if (selectedObject) {
+    if (selectedObject && selectionMode === 'object') {
       transformControls.attach(selectedObject);
       transformControls.visible = true;
 
-      // Create edges highlight
       const edges = new THREE.EdgesGeometry(selectedObject.geometry);
       const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
       const lineSegments = new THREE.LineSegments(edges, lineMaterial);
@@ -198,11 +232,17 @@ export default function Viewport() {
       scene.add(lineSegments);
       outlineRef.current = lineSegments;
 
-    } else {
+    } else if (selectedVertex) {
+        transformControls.attach(selectedVertex.object);
+        transformControls.visible = true;
+        scene.add(selectedVertex.object);
+        vertexHelperRef.current = selectedVertex.object;
+    }
+    else {
       transformControls.detach();
       transformControls.visible = false;
     }
-  }, [selectedObject]);
+  }, [selectedObject, selectedVertex, selectionMode]);
 
 
   // Handle adding primitives
@@ -227,7 +267,7 @@ export default function Viewport() {
         }
         
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.y = 0.5; // Place on top of the grid
+        mesh.position.y = 0.5;
         sceneRef.current.add(mesh);
       });
       clearPrimitivesToAdd();
