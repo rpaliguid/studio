@@ -9,6 +9,7 @@ export function SceneProvider({ children }) {
   const [selectionMode, setSelectionMode] = useState('object'); // object, vertex, edge, face
   const [selectedObject, setSelectedObject] = useState(null);
   const [primitivesToAdd, setPrimitivesToAdd] = useState([]);
+  const [selectedSubComponent, setSelectedSubComponent] = useState(null);
 
   const addPrimitive = useCallback((primitiveType) => {
     setPrimitivesToAdd(prev => [...prev, primitiveType]);
@@ -28,6 +29,8 @@ export function SceneProvider({ children }) {
     primitivesToAdd,
     addPrimitive,
     clearPrimitivesToAdd,
+    selectedSubComponent,
+    setSelectedSubComponent,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;

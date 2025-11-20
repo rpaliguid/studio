@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { useScene } from './scene-provider';
+
+// Constants for enabling/disabling layers for raycasting
+const ENABLE_ALL_LAYERS = 10;
+const DISABLE_ALL_LAYERS = 11;
+
 
 export default function Viewport() {
   const mountRef = useRef(null);
@@ -16,17 +21,17 @@ export default function Viewport() {
     setSelectedObject,
     primitivesToAdd,
     clearPrimitivesToAdd,
+    selectedSubComponent,
+    setSelectedSubComponent
   } = useScene();
   
-  const [selectedVertex, setSelectedVertex] = useState(null);
-
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
   const orbitControlsRef = useRef(null);
   const transformControlsRef = useRef(null);
   const outlineRef = useRef(null);
-  const vertexHelperRef = useRef(null);
+  const subComponentHelperRef = useRef(null);
 
 
   useEffect(() => {
@@ -66,11 +71,14 @@ export default function Viewport() {
     });
 
     transformControls.addEventListener('objectChange', () => {
-        if (selectedVertex && selectedObject) {
+        if (selectedSubComponent && selectedObject) {
             const positionAttribute = selectedObject.geometry.getAttribute('position');
-            positionAttribute.setXYZ(selectedVertex.index, selectedVertex.object.position.x, selectedVertex.object.position.y, selectedVertex.object.position.z);
-            positionAttribute.needsUpdate = true;
-            selectedObject.geometry.computeVertexNormals();
+            const helper = subComponentHelperRef.current;
+            if(helper){
+                positionAttribute.setXYZ(selectedSubComponent.index, helper.position.x, helper.position.y, helper.position.z);
+                positionAttribute.needsUpdate = true;
+                selectedObject.geometry.computeVertexNormals();
+            }
         }
     });
 
@@ -100,7 +108,7 @@ export default function Viewport() {
 
       raycaster.setFromCamera(mouse, camera);
 
-      const meshes = scene.children.filter(c => c.isMesh);
+      const meshes = scene.children.filter(c => c.isMesh && c.name !== 'subComponentHelper');
       const intersects = raycaster.intersectObjects(meshes);
 
       if (selectionMode === 'object') {
@@ -108,36 +116,37 @@ export default function Viewport() {
           const firstIntersected = intersects[0].object;
           if (firstIntersected !== selectedObject) {
             setSelectedObject(firstIntersected);
-            setSelectedVertex(null); 
+            setSelectedSubComponent(null); 
           }
         } else {
           setSelectedObject(null);
-          setSelectedVertex(null);
+          setSelectedSubComponent(null);
         }
       } else if (selectionMode === 'vertex' && selectedObject) {
         const positionAttribute = selectedObject.geometry.getAttribute('position');
         let closestVertex = null;
         let minDistance = Infinity;
 
+        // Make selectedObject invisible to raycaster for a moment
+        selectedObject.layers.set(DISABLE_ALL_LAYERS);
+
         for (let i = 0; i < positionAttribute.count; i++) {
             const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
-            selectedObject.localToWorld(vertex);
+            selectedObject.localToWorld(vertex); // transform vertex to world space
             const distance = raycaster.ray.distanceToPoint(vertex);
             if (distance < 0.1 && distance < minDistance) { 
                 minDistance = distance;
                 closestVertex = { index: i, position: vertex };
             }
         }
+        
+        // Make selectedObject visible again
+        selectedObject.layers.set(ENABLE_ALL_LAYERS);
 
         if (closestVertex) {
-            const vertexSphere = new THREE.Mesh(
-                new THREE.SphereGeometry(0.05),
-                new THREE.MeshBasicMaterial({ color: 0xff0000 })
-            );
-            vertexSphere.position.copy(closestVertex.position);
-            setSelectedVertex({ object: vertexSphere, index: closestVertex.index });
+            setSelectedSubComponent({ type: 'vertex', index: closestVertex.index, position: closestVertex.position });
         } else {
-            setSelectedVertex(null);
+            setSelectedSubComponent(null);
         }
       }
     };
@@ -198,13 +207,14 @@ export default function Viewport() {
     }
   }, [tool]);
 
-  // Handle object selection
+  // Handle object/sub-component selection
   useEffect(() => {
     const scene = sceneRef.current;
     const transformControls = transformControlsRef.current;
 
     if (!scene || !transformControls) return;
     
+    // Clear previous outlines and helpers
     if (outlineRef.current) {
         scene.remove(outlineRef.current);
         outlineRef.current.geometry.dispose();
@@ -212,12 +222,32 @@ export default function Viewport() {
         outlineRef.current = null;
     }
     
-    if(vertexHelperRef.current){
-        scene.remove(vertexHelperRef.current);
-        vertexHelperRef.current = null;
+    if(subComponentHelperRef.current){
+        scene.remove(subComponentHelperRef.current);
+        subComponentHelperRef.current.geometry.dispose();
+        subComponentHelperRef.current.material.dispose();
+        subComponentHelperRef.current = null;
     }
 
-    if (selectedObject && selectionMode === 'object') {
+    if (selectedSubComponent && selectedSubComponent.type === 'vertex') {
+        const vertexSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        vertexSphere.name = 'subComponentHelper';
+        vertexSphere.position.copy(selectedSubComponent.position);
+
+        if (vertexSphere) {
+            scene.add(vertexSphere);
+            subComponentHelperRef.current = vertexSphere;
+            transformControls.attach(vertexSphere);
+            transformControls.visible = true;
+        }
+        if (outlineRef.current) {
+             scene.remove(outlineRef.current);
+        }
+
+    } else if (selectedObject && selectionMode === 'object') {
       transformControls.attach(selectedObject);
       transformControls.visible = true;
 
@@ -229,20 +259,18 @@ export default function Viewport() {
       lineSegments.quaternion.copy(selectedObject.quaternion);
       lineSegments.scale.copy(selectedObject.scale);
       
-      scene.add(lineSegments);
-      outlineRef.current = lineSegments;
-
-    } else if (selectedVertex) {
-        transformControls.attach(selectedVertex.object);
-        transformControls.visible = true;
-        scene.add(selectedVertex.object);
-        vertexHelperRef.current = selectedVertex.object;
+      if (lineSegments) {
+        scene.add(lineSegments);
+        outlineRef.current = lineSegments;
+      }
     }
     else {
-      transformControls.detach();
+      if (transformControls.object) {
+        transformControls.detach();
+      }
       transformControls.visible = false;
     }
-  }, [selectedObject, selectedVertex, selectionMode]);
+  }, [selectedObject, selectedSubComponent, selectionMode]);
 
 
   // Handle adding primitives
@@ -268,7 +296,9 @@ export default function Viewport() {
         
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.y = 0.5;
-        sceneRef.current.add(mesh);
+        if(mesh) {
+            sceneRef.current.add(mesh);
+        }
       });
       clearPrimitivesToAdd();
     }
