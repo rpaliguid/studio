@@ -7,6 +7,7 @@ import { SceneProvider, useScene } from '@/components/nascad/scene-provider';
 import { cn } from '@/lib/utils';
 import Timeline from '@/components/nascad/timeline';
 import SplashScreen from '@/components/nascad/splash-screen';
+import PreviewDialog from '@/components/nascad/preview-dialog';
 
 function NascadLayout() {
   const { isLeftPanelOpen } = useScene();
@@ -27,6 +28,7 @@ function NascadLayout() {
           <Timeline />
         </main>
       </div>
+      <PreviewDialog />
     </div>
   );
 }

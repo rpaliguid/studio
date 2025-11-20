@@ -43,6 +43,9 @@ export default function Viewport() {
     setSceneGraph,
     undo,
     redo,
+    previewRequested,
+    setPreviewRequested,
+    setPreviewImage,
   } = useScene();
   
   const mountRef = useRef(null);
@@ -282,7 +285,7 @@ export default function Viewport() {
     cameraRef.current = camera;
     objectsRef.current.set(camera.uuid, camera);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -819,14 +822,20 @@ export default function Viewport() {
       const filename = fileToImport.name.toLowerCase();
 
       const handleLoadedModel = (object, animations) => {
-        
+        const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
         object.traverse((child) => {
           if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
-              if (!child.material.color) { // Assign random color if one doesn't exist
-                child.material.color = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
-              }
+              
+              const newMaterial = new THREE.MeshStandardMaterial({
+                color: randomColor,
+                metalness: 0.1,
+                roughness: 0.5,
+              });
+              if(child.material.map) newMaterial.map = child.material.map;
+              child.material = newMaterial;
+              
               if (!child.geometry.index) {
                   child.geometry = child.geometry.toIndexed();
               }
@@ -913,6 +922,20 @@ export default function Viewport() {
             setObjectsToDelete([]);
         }
     }, [objectsToDelete, setObjectsToDelete, addHistoryState, captureSceneState, handleDeselect, updateSceneGraph]);
+  
+  // --- Effect for Preview ---
+  useEffect(() => {
+    if (previewRequested) {
+      const renderer = rendererRef.current;
+      if (renderer) {
+        // Force a render of the scene to ensure it's up-to-date
+        renderer.render(sceneRef.current, cameraRef.current);
+        const dataUrl = renderer.domElement.toDataURL('image/png');
+        setPreviewImage(dataUrl);
+      }
+      setPreviewRequested(false);
+    }
+  }, [previewRequested, setPreviewRequested, setPreviewImage]);
 
 
   return <div ref={mountRef} className="w-full h-full" />;

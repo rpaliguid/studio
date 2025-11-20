@@ -45,6 +45,10 @@ export function SceneProvider({ children }) {
   const isMobile = useIsMobile();
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(!isMobile);
   
+  // Preview state
+  const [previewRequested, setPreviewRequested] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  
   useEffect(() => {
     setIsLeftPanelOpen(!isMobile);
   }, [isMobile]);
@@ -169,6 +173,10 @@ export function SceneProvider({ children }) {
     isLeftPanelOpen,
     setIsLeftPanelOpen,
     isMobile,
+    previewRequested,
+    setPreviewRequested,
+    previewImage,
+    setPreviewImage,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;
