@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useScene } from './scene-provider';
 
 export default function Viewport() {
@@ -437,26 +438,12 @@ export default function Viewport() {
       const reader = new FileReader();
       const filename = fileToImport.name.toLowerCase();
 
-      reader.onload = (e) => {
-        const contents = e.target.result;
-        let loader;
-        if (filename.endsWith('.fbx')) {
-          loader = new FBXLoader();
-        } else if (filename.endsWith('.obj')) {
-          loader = new OBJLoader();
-        } else {
-          console.error('Unsupported file type');
-          return;
-        }
-
-        const object = loader.parse(contents);
-
-        // Handle animations
-        if (object.animations && object.animations.length > 0) {
+      const handleLoadedModel = (object, animations) => {
+        if (animations && animations.length > 0) {
             const newMixer = new THREE.AnimationMixer(object);
-            const newActions = object.animations.map(clip => newMixer.clipAction(clip));
+            const newActions = animations.map(clip => newMixer.clipAction(clip));
             let maxDuration = 0;
-            object.animations.forEach(clip => {
+            animations.forEach(clip => {
                 maxDuration = Math.max(maxDuration, clip.duration);
             });
             
@@ -466,11 +453,34 @@ export default function Viewport() {
             setAnimationTime(0);
             setIsPlaying(false);
         }
-
         scene.add(object);
       };
 
-      if (filename.endsWith('.fbx')) {
+      reader.onload = (e) => {
+        const contents = e.target.result;
+        
+        if (filename.endsWith('.fbx')) {
+          const loader = new FBXLoader();
+          const object = loader.parse(contents);
+          handleLoadedModel(object, object.animations);
+        } else if (filename.endsWith('.obj')) {
+          const loader = new OBJLoader();
+          const object = loader.parse(contents);
+          handleLoadedModel(object, []);
+        } else if (filename.endsWith('.gltf') || filename.endsWith('.glb')) {
+          const loader = new GLTFLoader();
+          loader.parse(contents, '', (gltf) => {
+            handleLoadedModel(gltf.scene, gltf.animations);
+          }, (error) => {
+            console.error('An error happened with GLTFLoader:', error);
+          });
+        } else {
+          console.error('Unsupported file type');
+          return;
+        }
+      };
+
+      if (filename.endsWith('.fbx') || filename.endsWith('.glb') || filename.endsWith('.gltf')) {
         reader.readAsArrayBuffer(fileToImport);
       } else {
         reader.readAsText(fileToImport);
