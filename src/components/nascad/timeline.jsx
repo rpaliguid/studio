@@ -17,8 +17,8 @@ export default function Timeline() {
   } = useScene();
 
   const handlePlayPause = () => {
-    if (animationDuration > 0) {
-        setIsPlaying(!isPlaying);
+    if (mixer && animationDuration > 0) {
+      setIsPlaying(!isPlaying);
     }
   };
 
@@ -50,7 +50,6 @@ export default function Timeline() {
   useEffect(() => {
     // This effect handles looping. When the animation finishes, if it was playing, we reset it.
     if(isPlaying && animationTime >= animationDuration && animationDuration > 0) {
-        // Reset the animation time which will cause the viewport loop to continue from the start
         if(mixer) {
             mixer.setTime(0);
             setAnimationTime(0);

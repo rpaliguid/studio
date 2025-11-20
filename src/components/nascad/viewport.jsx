@@ -54,6 +54,7 @@ export default function Viewport() {
   const selectionVisualsRef = useRef([]); 
   const clockRef = useRef(new THREE.Clock());
   const objectsRef = useRef(new Map());
+  const animationFrameId = useRef(null);
 
   const handleDeselect = useCallback(() => {
     setSelectedObjects([]);
@@ -452,21 +453,6 @@ export default function Viewport() {
     };
     currentMount.addEventListener('click', onClick);
 
-    const animate = () => {
-      requestAnimationFrame(animate);
-      orbitControls.update();
-      
-      const delta = clockRef.current.getDelta();
-      if (mixer && isPlaying) {
-        mixer.update(delta);
-        const newTime = Math.min(mixer.time, animationDuration);
-        setAnimationTime(newTime);
-      }
-
-      renderer.render(scene, camera);
-    };
-    animate();
-
     const handleResize = () => {
       if (currentMount) {
         camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
@@ -521,11 +507,47 @@ export default function Viewport() {
       if (renderer.domElement && renderer.domElement.parentElement === currentMount) {
         currentMount.removeChild(renderer.domElement);
       }
+       if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
       orbitControls.dispose();
       transformControls.dispose();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
+
+  // --- Effect for Animation Loop ---
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    const orbitControls = orbitControlsRef.current;
+
+    const animate = () => {
+      animationFrameId.current = requestAnimationFrame(animate);
+      orbitControls.update();
+      
+      const delta = clockRef.current.getDelta();
+      if (mixer && isPlaying) {
+        mixer.update(delta);
+        const newTime = Math.min(mixer.time, animationDuration);
+        setAnimationTime(newTime);
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    // Start the animation loop
+    animate();
+
+    return () => {
+      // Clean up the animation frame when the component unmounts or deps change
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
+  }, [isPlaying, mixer, setAnimationTime, animationDuration]);
+
 
   // --- Effect for Undo/Redo ---
   useEffect(() => {
@@ -772,8 +794,6 @@ export default function Viewport() {
 
       if (filename.endsWith('.glb') || filename.endsWith('.gltf')) {
         reader.readAsArrayBuffer(fileToImport);
-      } else {
-        reader.readAsText(fileToImport);
       }
       
       setFileToImport(null);
@@ -783,20 +803,19 @@ export default function Viewport() {
 
   // --- Effect for Animation Control ---
   useEffect(() => {
-    if (!mixer) return;
+    if (!mixer || !animationActions) return;
 
     if (isPlaying) {
       animationActions.forEach(action => {
-        // If the animation was paused, we want it to continue from where it was.
         action.paused = false;
-        // If the animation is not already playing, play it.
         if (!action.isRunning()) {
             action.play();
         }
       });
     } else {
-      // If we are pausing, just pause the actions. Don't stop them.
-      animationActions.forEach(action => action.paused = true);
+      animationActions.forEach(action => {
+        action.paused = true;
+      });
     }
   }, [isPlaying, mixer, animationActions]);
 
