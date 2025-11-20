@@ -36,8 +36,11 @@ export default function Timeline() {
   const handleScrub = (value) => {
     const newTime = value[0];
     if (mixer) {
+        // Set the time on the mixer
         mixer.setTime(newTime);
+        // Also update the state for the slider
         setAnimationTime(newTime);
+        // If we are paused, we need to manually update the scene to reflect the new time
          if (!isPlaying) {
             mixer.update(0);
          }
@@ -45,10 +48,15 @@ export default function Timeline() {
   };
 
   useEffect(() => {
-    if(isPlaying && animationTime >= animationDuration) {
-        setIsPlaying(false);
+    // This effect handles looping. When the animation finishes, if it was playing, we reset it.
+    if(isPlaying && animationTime >= animationDuration && animationDuration > 0) {
+        // Reset the animation time which will cause the viewport loop to continue from the start
+        if(mixer) {
+            mixer.setTime(0);
+            setAnimationTime(0);
+        }
     }
-  }, [animationTime, animationDuration, isPlaying, setIsPlaying]);
+  }, [animationTime, animationDuration, isPlaying, mixer, setAnimationTime]);
 
 
   // Format time as MM:SS:FF (minutes:seconds:frames)

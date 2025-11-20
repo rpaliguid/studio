@@ -52,7 +52,7 @@ export function SceneProvider({ children }) {
   const redo = useCallback(() => {
     if (canRedo) {
       setIsRestoring(true);
-      setHistoryIndex(prev => prev + 1); // Corrected from prev - 1 to prev + 1
+      setHistoryIndex(prev => prev + 1);
     }
   }, [canRedo]);
 

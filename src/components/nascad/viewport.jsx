@@ -29,6 +29,7 @@ export default function Viewport() {
     isPlaying,
     setIsPlaying,
     setAnimationTime,
+    animationDuration,
     setAnimationDuration,
     animationActions,
     setAnimationActions,
@@ -460,12 +461,6 @@ export default function Viewport() {
         mixer.update(delta);
         const newTime = Math.min(mixer.time, animationDuration);
         setAnimationTime(newTime);
-        if (newTime >= animationDuration) {
-            setIsPlaying(false);
-            mixer.setTime(0); // Loop animation
-            setAnimationTime(0);
-            setIsPlaying(true);
-        }
       }
 
       renderer.render(scene, camera);
@@ -695,7 +690,16 @@ export default function Viewport() {
 
         // Ensure the geometry is indexed for sub-component selection
         if (!geometry.index) {
-          geometry = geometry.toIndexed();
+          const indexedGeometry = new THREE.BufferGeometry();
+          indexedGeometry.setAttribute('position', geometry.getAttribute('position'));
+          if (geometry.getAttribute('normal')) {
+            indexedGeometry.setAttribute('normal', geometry.getAttribute('normal'));
+          }
+          if (geometry.getAttribute('uv')) {
+            indexedGeometry.setAttribute('uv', geometry.getAttribute('uv'));
+          }
+          geometry.dispose();
+          geometry = indexedGeometry.toIndexed();
         }
         
         geometry.computeVertexNormals();
@@ -744,7 +748,7 @@ export default function Viewport() {
             setAnimationActions(newActions);
             setAnimationDuration(maxDuration);
             setAnimationTime(0);
-            setIsPlaying(false);
+            setIsPlaying(false); // Start paused
         }
         scene.add(object);
         
@@ -793,12 +797,15 @@ export default function Viewport() {
 
     if (isPlaying) {
       animationActions.forEach(action => {
-        if (mixer.time < action.getClip().duration) {
-            action.paused = false;
+        // If the animation was paused, we want it to continue from where it was.
+        action.paused = false;
+        // If the animation is not already playing, play it.
+        if (!action.isRunning()) {
             action.play();
         }
       });
     } else {
+      // If we are pausing, just pause the actions. Don't stop them.
       animationActions.forEach(action => action.paused = true);
     }
   }, [isPlaying, mixer, animationActions]);
