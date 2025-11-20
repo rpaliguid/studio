@@ -31,7 +31,7 @@ import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScene } from '@/components/nascad/scene-provider';
 import { cn } from '@/lib/utils';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 
 const SceneItem = ({ node, level = 0 }) => {
@@ -269,6 +269,12 @@ export default function LeftPanel() {
     return (
       <Sheet open={isLeftPanelOpen} onOpenChange={setIsLeftPanelOpen}>
         <SheetContent side="left" className="p-0 w-72">
+           <SheetHeader>
+            <SheetTitle className="sr-only">Toolbox and Scene Graph</SheetTitle>
+            <SheetDescription className="sr-only">
+              Contains tools for creating and manipulating 3D objects, as well as a hierarchical view of all objects in the scene.
+            </SheetDescription>
+          </SheetHeader>
           <LeftPanelContent />
         </SheetContent>
       </Sheet>
