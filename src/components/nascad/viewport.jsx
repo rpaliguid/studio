@@ -100,17 +100,42 @@ export default function Viewport() {
     });
 
     transformControls.addEventListener('objectChange', () => {
-        if (selectedSubComponent && selectedObject && subComponentHelperRef.current) {
-           const positionAttribute = selectedObject.geometry.getAttribute('position');
-           const helper = subComponentHelperRef.current;
+        if (!selectedSubComponent || !selectedObject || !subComponentHelperRef.current) return;
 
-           if(selectedSubComponent.type === 'vertex'){
-              // Convert the helper's world position back to the object's local space
-              const localPosition = selectedObject.worldToLocal(helper.position.clone());
-              positionAttribute.setXYZ(selectedSubComponent.index, localPosition.x, localPosition.y, localPosition.z);
-              positionAttribute.needsUpdate = true;
-              selectedObject.geometry.computeVertexNormals();
-           }
+        const positionAttribute = selectedObject.geometry.getAttribute('position');
+        const helper = subComponentHelperRef.current;
+
+        if (selectedSubComponent.type === 'vertex') {
+            // Convert the helper's world position back to the object's local space
+            const localPosition = selectedObject.worldToLocal(helper.position.clone());
+            positionAttribute.setXYZ(selectedSubComponent.index, localPosition.x, localPosition.y, localPosition.z);
+            positionAttribute.needsUpdate = true;
+            selectedObject.geometry.computeVertexNormals();
+        } else if (selectedSubComponent.type === 'face') {
+            // When the helper (representing the face) is transformed, calculate the transformation
+            // matrix and apply it to the actual face vertices.
+            
+            // This is a simplified approach. A robust implementation would involve calculating
+            // the delta transformation from the helper's initial state.
+            const faceIndices = selectedSubComponent.indices;
+            const originalVertices = selectedSubComponent.originalVertices;
+
+            for (let i = 0; i < faceIndices.length; i++) {
+                const vertexIndex = faceIndices[i];
+                const originalVertex = originalVertices[i].clone();
+
+                // Apply the helper's transformation to the original vertex positions
+                const transformedVertex = originalVertex.applyMatrix4(helper.matrix);
+                
+                // Convert back to object's local space from world space
+                const localTransformedVertex = selectedObject.worldToLocal(transformedVertex);
+
+                positionAttribute.setXYZ(vertexIndex, localTransformedVertex.x, localTransformedVertex.y, localTransformedVertex.z);
+            }
+
+            positionAttribute.needsUpdate = true;
+            selectedObject.geometry.computeVertexNormals();
+            selectedObject.geometry.computeBoundingSphere();
         }
     });
 
@@ -180,10 +205,28 @@ export default function Viewport() {
           } else if (selectionMode === 'face' && intersects.length > 0) {
               const intersect = intersects[0];
               if (intersect.face) {
-                  setSelectedSubComponent({ type: 'face', index: intersect.faceIndex, normal: intersect.face.normal });
+                  const faceIndex = intersect.faceIndex;
+                  const faceIndices = [
+                      geometry.index.getX(faceIndex * 3),
+                      geometry.index.getY(faceIndex * 3),
+                      geometry.index.getZ(faceIndex * 3),
+                  ];
+                  
+                  const originalVertices = faceIndices.map(index => {
+                      const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, index);
+                      return selectedObject.localToWorld(vertex); // Store original positions in world space
+                  });
+
+                  setSelectedSubComponent({ 
+                      type: 'face', 
+                      index: faceIndex, 
+                      normal: intersect.face.normal,
+                      indices: faceIndices,
+                      originalVertices: originalVertices, // Store for transformation
+                  });
                   // If extrude tool is active, perform action
                   if(tool === 'extrude'){
-                      extrudeFace(selectedObject, intersect.faceIndex);
+                      extrudeFace(selectedObject, faceIndex);
                       setTool('translate'); // Reset tool
                   }
               }
@@ -278,11 +321,10 @@ export default function Viewport() {
         outlineRef.current = null;
     }
     if(subComponentHelperRef.current){
+        // If the helper is a mesh with geometry/material
+        if (subComponentHelperRef.current.geometry) subComponentHelperRef.current.geometry.dispose();
+        if (subComponentHelperRef.current.material) subComponentHelperRef.current.material.dispose();
         scene.remove(subComponentHelperRef.current);
-        subComponentHelperRef.current.geometry.dispose();
-        if (subComponentHelperRef.current.material) {
-           subComponentHelperRef.current.material.dispose();
-        }
         subComponentHelperRef.current = null;
     }
     transformControls.detach();
@@ -292,7 +334,7 @@ export default function Viewport() {
     // --- Create new visuals based on selection ---
     if (selectedObject) {
       // Show edge outline for the selected object, but only if no sub-component is selected
-      if (!selectedSubComponent) {
+      if (!selectedSubComponent && selectionMode === 'object') {
         const edges = new THREE.EdgesGeometry(selectedObject.geometry, 1);
         const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
         const lineSegments = new THREE.LineSegments(edges, lineMaterial);
@@ -313,42 +355,54 @@ export default function Viewport() {
               // Position the helper in world space
               helper.position.copy(selectedSubComponent.position);
           } else if (selectedSubComponent.type === 'face') {
-              // Create a mesh to highlight the selected face
-              const geometry = new THREE.BufferGeometry();
-              const vertices = [];
-              const originalVertices = selectedObject.geometry.getAttribute('position');
-              const faceIndices = [
-                  selectedObject.geometry.index.getX(selectedSubComponent.index * 3),
-                  selectedObject.geometry.index.getY(selectedSubComponent.index * 3),
-                  selectedObject.geometry.index.getZ(selectedSubComponent.index * 3),
-              ];
-              
-              vertices.push(
-                  originalVertices.getX(faceIndices[0]), originalVertices.getY(faceIndices[0]), originalVertices.getZ(faceIndices[0]),
-                  originalVertices.getX(faceIndices[1]), originalVertices.getY(faceIndices[1]), originalVertices.getZ(faceIndices[1]),
-                  originalVertices.getX(faceIndices[2]), originalVertices.getY(faceIndices[2]), originalVertices.getZ(faceIndices[2]),
-              );
+              // For face selection, create an invisible helper object at the face's center
+              // to attach the transform controls to.
+              const geometry = selectedObject.geometry;
+              const positionAttribute = geometry.getAttribute('position');
+              const faceIndices = selectedSubComponent.indices;
 
-              geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-              helper = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.3 }));
+              const v1 = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[0]);
+              const v2 = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[1]);
+              const v3 = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[2]);
               
-              // This helper is in the object's local space, so attach it to the object
-              helper.position.copy(selectedObject.position);
-              helper.quaternion.copy(selectedObject.quaternion);
-              helper.scale.copy(selectedObject.scale);
+              const faceCentroid = new THREE.Vector3().add(v1).add(v2).add(v3).divideScalar(3);
+              selectedObject.localToWorld(faceCentroid); // Convert to world space
+
+              // Create the visual highlight mesh for the face
+              const highlightGeometry = new THREE.BufferGeometry();
+              const vertices = [
+                  v1.x, v1.y, v1.z,
+                  v2.x, v2.y, v2.z,
+                  v3.x, v3.y, v3.z,
+              ];
+              highlightGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+              const highlightMesh = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
+              
+              // This highlight is in the object's local space, so attach it to the object
+              highlightMesh.position.copy(selectedObject.position);
+              highlightMesh.quaternion.copy(selectedObject.quaternion);
+              highlightMesh.scale.copy(selectedObject.scale);
+              highlightMesh.name = 'subComponentHelper'; // This is the visual part
+              scene.add(highlightMesh);
+              subComponentHelperRef.current = highlightMesh;
+
+              // Create an invisible object for the gizmo to attach to
+              helper = new THREE.Object3D();
+              helper.position.copy(faceCentroid);
+              helper.lookAt(faceCentroid.clone().add(selectedSubComponent.normal));
           }
           // Note: Edge selection helper would be implemented here
 
           if(helper){
-              helper.name = 'subComponentHelper';
-              scene.add(helper);
-              subComponentHelperRef.current = helper;
-              
-              // Attach transform controls to vertex helpers for manipulation
-              if (selectedSubComponent.type === 'vertex') {
-                 transformControls.attach(helper);
-                 transformControls.visible = true;
+              if (!subComponentHelperRef.current) {
+                 helper.name = 'subComponentHelper';
+                 scene.add(helper);
+                 subComponentHelperRef.current = helper;
               }
+              
+              // Attach transform controls to the helper for manipulation
+              transformControls.attach(helper);
+              transformControls.visible = true;
           }
       } else if (selectionMode === 'object') {
         // If in object mode and no sub-component is selected, attach gizmo to the object itself
