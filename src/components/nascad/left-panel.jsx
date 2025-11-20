@@ -27,7 +27,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
-import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
+import { VertexIcon, EdgeIcon, FaceIcon, TorusIcon } from '@/components/icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScene } from '@/components/nascad/scene-provider';
 import { cn } from '@/lib/utils';
@@ -148,6 +148,7 @@ const primitives = [
     { id: 'cube', icon: Box, name: 'Cube' },
     { id: 'sphere', icon: Circle, name: 'Sphere' },
     { id: 'cylinder', icon: Database, name: 'Cylinder' },
+    { id: 'torus', icon: TorusIcon, name: 'Torus' },
 ];
 
 const ToolButton = ({ tool, onClick, currentTool }) => (

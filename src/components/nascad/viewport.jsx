@@ -758,6 +758,15 @@ export default function Viewport() {
   useEffect(() => {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
+        if (primitiveType === 'torus') {
+          const loader = new GLTFLoader();
+          loader.load('https://cdn.glitch.global/68b2a272-e034-45d6-8832-c1161245a4a5/torus.glb?v=1716398939215', (gltf) => {
+            const object = gltf.scene;
+            handleLoadedModel(object, [], primitiveType);
+          });
+          return;
+        }
+
         let geometry;
         const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
         const material = new THREE.MeshStandardMaterial({
@@ -808,60 +817,60 @@ export default function Viewport() {
       updateSceneGraph();
       clearPrimitivesToAdd();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [primitivesToAdd, clearPrimitivesToAdd, addHistoryState, captureSceneState, updateSceneGraph]);
 
+  const handleLoadedModel = useCallback((object, animations, name = 'Imported') => {
+    const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
+    object.name = name.charAt(0).toUpperCase() + name.slice(1);
+    object.traverse((child) => {
+      if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          
+          const newMaterial = new THREE.MeshStandardMaterial({
+            color: randomColor,
+            metalness: 0.1,
+            roughness: 0.5,
+          });
+          if(child.material.map) newMaterial.map = child.material.map;
+          child.material = newMaterial;
+          
+          if (!child.geometry.index) {
+              child.geometry = child.geometry.toIndexed();
+          }
+          child.geometry.computeVertexNormals();
+      }
+      objectsRef.current.set(child.uuid, child);
+    });
+    
+    if (animations && animations.length > 0) {
+        const newMixer = new THREE.AnimationMixer(object);
+        const newActions = animations.map(clip => newMixer.clipAction(clip));
+        let maxDuration = 0;
+        animations.forEach(clip => {
+            maxDuration = Math.max(maxDuration, clip.duration);
+        });
+
+        newActions.forEach(action => action.play());
+        
+        setMixer(newMixer);
+        setAnimationActions(newActions);
+        setAnimationDuration(maxDuration);
+        setAnimationTime(0);
+        setIsPlaying(false); // Start paused
+    }
+    sceneRef.current.add(object);
+    
+    addHistoryState(captureSceneState());
+    updateSceneGraph();
+  }, [addHistoryState, captureSceneState, updateSceneGraph, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying]);
 
   // --- Effect for Importing Files ---
   useEffect(() => {
     if (fileToImport && sceneRef.current) {
-      const scene = sceneRef.current;
       const reader = new FileReader();
       const filename = fileToImport.name.toLowerCase();
-
-      const handleLoadedModel = (object, animations) => {
-        const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
-        object.traverse((child) => {
-          if (child.isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-              
-              const newMaterial = new THREE.MeshStandardMaterial({
-                color: randomColor,
-                metalness: 0.1,
-                roughness: 0.5,
-              });
-              if(child.material.map) newMaterial.map = child.material.map;
-              child.material = newMaterial;
-              
-              if (!child.geometry.index) {
-                  child.geometry = child.geometry.toIndexed();
-              }
-              child.geometry.computeVertexNormals();
-          }
-          objectsRef.current.set(child.uuid, child);
-        });
-        
-        if (animations && animations.length > 0) {
-            const newMixer = new THREE.AnimationMixer(object);
-            const newActions = animations.map(clip => newMixer.clipAction(clip));
-            let maxDuration = 0;
-            animations.forEach(clip => {
-                maxDuration = Math.max(maxDuration, clip.duration);
-            });
-
-            newActions.forEach(action => action.play());
-            
-            setMixer(newMixer);
-            setAnimationActions(newActions);
-            setAnimationDuration(maxDuration);
-            setAnimationTime(0);
-            setIsPlaying(false); // Start paused
-        }
-        scene.add(object);
-        
-        addHistoryState(captureSceneState());
-        updateSceneGraph();
-      };
 
       reader.onload = (e) => {
         const contents = e.target.result;
@@ -869,7 +878,7 @@ export default function Viewport() {
         if (filename.endsWith('.gltf') || filename.endsWith('.glb')) {
           const loader = new GLTFLoader();
           loader.parse(contents, '', (gltf) => {
-            handleLoadedModel(gltf.scene, gltf.animations);
+            handleLoadedModel(gltf.scene, gltf.animations, fileToImport.name.replace(/\.[^/.]+$/, ""));
           }, (error) => {
             console.error('An error happened with GLTFLoader:', error);
           });
@@ -885,8 +894,7 @@ export default function Viewport() {
       
       setFileToImport(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileToImport, setFileToImport, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying, addHistoryState, captureSceneState, updateSceneGraph]);
+  }, [fileToImport, setFileToImport, handleLoadedModel]);
 
 
   // --- Effect for Deleting Objects ---
