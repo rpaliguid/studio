@@ -9,7 +9,15 @@ export function SceneProvider({ children }) {
   const [selectionMode, setSelectionMode] = useState('object'); // object, vertex, edge, face
   const [selectedObject, setSelectedObject] = useState(null);
   const [primitivesToAdd, setPrimitivesToAdd] = useState([]);
-  const [selectedSubComponent, setSelectedSubComponent] = useState(null); // { type: 'vertex' | 'edge' | 'face', index: number, position?: THREE.Vector3 }
+  const [selectedSubComponent, setSelectedSubComponent] = useState(null);
+  
+  // New state for import/export and animation
+  const [fileToImport, setFileToImport] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [animationTime, setAnimationTime] = useState(0);
+  const [animationDuration, setAnimationDuration] = useState(0);
+  const [animationActions, setAnimationActions] = useState([]);
+  const [mixer, setMixer] = useState(null);
 
   const addPrimitive = useCallback((primitiveType) => {
     setPrimitivesToAdd(prev => [...prev, primitiveType]);
@@ -18,24 +26,10 @@ export function SceneProvider({ children }) {
   const clearPrimitivesToAdd = useCallback(() => {
     setPrimitivesToAdd([]);
   }, []);
-  
-  const handleToolChange = (newTool) => {
-    const transformTools = ['translate', 'rotate', 'scale'];
-    if (transformTools.includes(newTool)) {
-      setTool(newTool);
-    } else {
-      // For instant-action tools like extrude/bevel
-      // We can set it, and the viewport can listen for it, perform the action, and reset the tool.
-      setTool(newTool); 
-      // Optionally, reset to a default tool immediately after
-      // setTimeout(() => setTool('translate'), 100);
-    }
-  };
-
 
   const value = {
     tool,
-    setTool: handleToolChange,
+    setTool,
     selectionMode,
     setSelectionMode,
     selectedObject,
@@ -45,6 +39,18 @@ export function SceneProvider({ children }) {
     clearPrimitivesToAdd,
     selectedSubComponent,
     setSelectedSubComponent,
+    fileToImport,
+    setFileToImport,
+    isPlaying,
+    setIsPlaying,
+    animationTime,
+    setAnimationTime,
+    animationDuration,
+    setAnimationDuration,
+    animationActions,
+    setAnimationActions,
+    mixer,
+    setMixer
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;
