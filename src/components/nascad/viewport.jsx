@@ -373,20 +373,22 @@ export default function Viewport() {
         
         switch (primitiveType) {
           case 'cube':
-            geometry = new THREE.BoxGeometry(1, 1, 1).toNonIndexed(); // Use non-indexed for easier manipulation initially
+            geometry = new THREE.BoxGeometry(1, 1, 1);
             break;
           case 'sphere':
-            geometry = new THREE.SphereGeometry(0.5, 32, 16).toNonIndexed();
+            geometry = new THREE.SphereGeometry(0.5, 32, 16);
             break;
           case 'cylinder':
-            geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32).toNonIndexed();
+            geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
             break;
           default:
             return;
         }
         
-        // We need indexed geometry for face selection to work properly
-        const indexedGeometry = new THREE.BufferGeometry().setFromPoints(geometry.getAttribute('position').array.map((_, i, a) => i % 3 === 0 ? new THREE.Vector3(a[i], a[i+1], a[i+2]) : null).filter(Boolean));
+        const nonIndexed = geometry.toNonIndexed();
+        const indexedGeometry = new THREE.BufferGeometry();
+        indexedGeometry.setAttribute('position', nonIndexed.getAttribute('position'));
+        indexedGeometry.setIndex(Array.from({ length: nonIndexed.getAttribute('position').count / 3 }, (_, i) => [i * 3, i * 3 + 1, i * 3 + 2]).flat());
         indexedGeometry.computeVertexNormals();
 
         const mesh = new THREE.Mesh(indexedGeometry, material);
