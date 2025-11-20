@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 export default function Viewport() {
   const mountRef = useRef(null);
+  const [selectedObject, setSelectedObject] = useState(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -45,12 +46,43 @@ export default function Viewport() {
 
     // Transform Controls (gizmo)
     const transformControls = new TransformControls(camera, renderer.domElement);
-    transformControls.attach(cube);
     scene.add(transformControls);
+    transformControls.visible = false; 
 
     transformControls.addEventListener('dragging-changed', function (event) {
       orbitControls.enabled = !event.value;
     });
+
+    // Raycaster for object selection
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onClick = (event) => {
+        // Calculate mouse position in normalized device coordinates
+        mouse.x = (event.clientX / currentMount.clientWidth) * 2 - 1;
+        mouse.y = -(event.clientY / currentMount.clientHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        const intersects = raycaster.intersectObjects(scene.children.filter(c => c.isMesh));
+
+        if (intersects.length > 0) {
+            const firstIntersected = intersects[0].object;
+            if (selectedObject !== firstIntersected) {
+                setSelectedObject(firstIntersected);
+                transformControls.attach(firstIntersected);
+                transformControls.visible = true;
+            }
+        } else {
+            if (selectedObject) {
+                transformControls.detach();
+                transformControls.visible = false;
+                setSelectedObject(null);
+            }
+        }
+    }
+    currentMount.addEventListener('click', onClick);
+
 
     // Floor Grid
     const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
@@ -103,6 +135,7 @@ export default function Viewport() {
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
+      currentMount.removeEventListener('click', onClick);
       if (currentMount) {
         currentMount.removeChild(renderer.domElement);
       }
