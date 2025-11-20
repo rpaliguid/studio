@@ -767,14 +767,14 @@ export default function Viewport() {
         }
 
         if (primitiveType === 'robotic-arm') {
-          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/public/Robotic%20Arm.glb', (gltf) => {
+          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/Robotic%20Arm.glb', (gltf) => {
             handleLoadedModel(gltf.scene, gltf.animations, 'Robotic Arm');
           });
           return;
         }
 
         if (primitiveType === 'gun') {
-          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/public/Gun.glb', (gltf) => {
+          loader.load('https://raw.githubusercontent.com/rpaliguid/nascad/main/Gun.glb', (gltf) => {
             handleLoadedModel(gltf.scene, gltf.animations, 'Gun');
           });
           return;
