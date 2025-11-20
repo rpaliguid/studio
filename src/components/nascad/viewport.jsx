@@ -26,6 +26,7 @@ export default function Viewport() {
     setFileToImport,
     isPlaying,
     setIsPlaying,
+    animationTime,
     setAnimationTime,
     animationDuration,
     setAnimationDuration,
@@ -69,14 +70,10 @@ export default function Viewport() {
 
     const graph = [];
     const processedUuids = new Set();
-    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'floor']);
+    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'floor', 'Directional Light']);
 
     const buildNode = (object) => {
       if (!object || processedUuids.has(object.uuid) || internalObjectNames.has(object.name) || object.isTransformControls || object.isLine) return null;
-      
-      if (object.parent === sceneRef.current && (object.isLight || object.isCamera)) {
-          if (object.name !== 'Directional Light') return null;
-      }
       
       processedUuids.add(object.uuid);
 
@@ -274,7 +271,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x333333); // Darker background
+    scene.background = new THREE.Color(0x1a2035);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
