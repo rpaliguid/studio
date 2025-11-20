@@ -140,69 +140,61 @@ export default function Viewport() {
       raycaster.setFromCamera(mouse, camera);
 
       const meshes = scene.children.filter(c => c.isMesh && c.name !== 'subComponentHelper');
-      const intersects = raycaster.intersectObjects(meshes);
+      const intersects = raycaster.intersectObjects(meshes, false);
       
       const intersectedObject = intersects.length > 0 ? intersects[0].object : null;
 
       if (selectionMode === 'object') {
         setSelectedObject(intersectedObject);
         setSelectedSubComponent(null); 
-      } else if (selectedObject) { // Sub-object selection modes
-        
-        // Deselect sub-component or change object if clicking elsewhere
-        if (!intersectedObject || intersectedObject !== selectedObject) {
-             setSelectedSubComponent(null);
-             // If we clicked another object, switch to it in object mode
-             if (intersectedObject) {
-                 setSelectionMode('object');
-                 setSelectedObject(intersectedObject);
-             } else {
-                 setSelectedObject(null);
-             }
-             return;
-        }
+      } else if (selectedObject && intersects.length > 0 && intersects[0].object === selectedObject) {
+          const intersectPoint = intersects[0].point;
+          const geometry = selectedObject.geometry;
+          const positionAttribute = geometry.getAttribute('position');
 
-        const intersectPoint = intersects[0].point;
-        const geometry = selectedObject.geometry;
-        const positionAttribute = geometry.getAttribute('position');
+          if (selectionMode === 'vertex') {
+              let closestVertexIndex = -1;
+              let minDistance = Infinity;
 
-        if (selectionMode === 'vertex') {
-            let closestVertexIndex = -1;
-            let minDistance = Infinity;
-
-            for (let i = 0; i < positionAttribute.count; i++) {
-                const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
-                selectedObject.localToWorld(vertex); // transform to world space for comparison
-                const distance = vertex.distanceTo(intersectPoint);
-                
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestVertexIndex = i;
-                }
-            }
-            
-            // Threshold for selection
-            if (minDistance < 0.1) {
-                const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertexIndex);
-                selectedObject.localToWorld(vertexPosition); // world space position for gizmo
-                setSelectedSubComponent({ type: 'vertex', index: closestVertexIndex, position: vertexPosition });
-            } else {
-                setSelectedSubComponent(null);
-            }
-        } else if (selectionMode === 'face' && intersects.length > 0) {
-            const intersect = intersects[0];
-            if (intersect.face) {
-                setSelectedSubComponent({ type: 'face', index: intersect.faceIndex, normal: intersect.face.normal });
-                 // If extrude tool is active, perform action
-                if(tool === 'extrude'){
-                    extrudeFace(selectedObject, intersect.faceIndex);
-                    setTool('translate'); // Reset tool
-                }
-            }
-        } else {
-            // Placeholder for edge selection
-            setSelectedSubComponent(null);
-        }
+              // Iterate through vertices to find the closest one to the intersection point
+              for (let i = 0; i < positionAttribute.count; i++) {
+                  const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+                  // Transform vertex to world space to compare with intersection point
+                  selectedObject.localToWorld(vertex); 
+                  const distance = vertex.distanceTo(intersectPoint);
+                  
+                  if (distance < minDistance) {
+                      minDistance = distance;
+                      closestVertexIndex = i;
+                  }
+              }
+              
+              // If a vertex is found within a small threshold, select it
+              if (minDistance < 0.1) {
+                  const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertexIndex);
+                  selectedObject.localToWorld(vertexPosition); // Get world space position for the gizmo
+                  setSelectedSubComponent({ type: 'vertex', index: closestVertexIndex, position: vertexPosition });
+              } else {
+                  setSelectedSubComponent(null);
+              }
+          } else if (selectionMode === 'face' && intersects.length > 0) {
+              const intersect = intersects[0];
+              if (intersect.face) {
+                  setSelectedSubComponent({ type: 'face', index: intersect.faceIndex, normal: intersect.face.normal });
+                  // If extrude tool is active, perform action
+                  if(tool === 'extrude'){
+                      extrudeFace(selectedObject, intersect.faceIndex);
+                      setTool('translate'); // Reset tool
+                  }
+              }
+          } else {
+              // Placeholder for edge selection
+              setSelectedSubComponent(null);
+          }
+      } else {
+        // Clicked on nothing, deselect everything
+        setSelectedObject(null);
+        setSelectedSubComponent(null);
       }
     };
     currentMount.addEventListener('click', onClick);
@@ -243,6 +235,7 @@ export default function Viewport() {
         case '2': setSelectionMode('vertex'); setSelectedSubComponent(null); break;
         case '3': setSelectionMode('edge'); setSelectedSubComponent(null); break;
         case '4': setSelectionMode('face'); setSelectedSubComponent(null); break;
+        case 'escape': setSelectedObject(null); setSelectedSubComponent(null); break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -401,3 +394,5 @@ export default function Viewport() {
 
   return <div ref={mountRef} className="w-full h-full" />;
 }
+
+    
