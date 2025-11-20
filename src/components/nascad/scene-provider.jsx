@@ -7,7 +7,7 @@ const SceneContext = createContext(null);
 export function SceneProvider({ children }) {
   const [tool, setTool] = useState('translate'); // translate, rotate, scale, extrude, bevel
   const [selectionMode, setSelectionMode] = useState('object'); // object, vertex, edge, face
-  const [selectedObject, setSelectedObject] = useState(null);
+  const [selectedObjects, setSelectedObjects] = useState([]); // Changed from selectedObject to selectedObjects
   const [primitivesToAdd, setPrimitivesToAdd] = useState([]);
   const [selectedSubComponent, setSelectedSubComponent] = useState(null);
   
@@ -25,7 +25,7 @@ export function SceneProvider({ children }) {
   const [isRestoring, setIsRestoring] = useState(false);
 
   // Delete state
-  const [objectToDelete, setObjectToDelete] = useState(null);
+  const [objectsToDelete, setObjectsToDelete] = useState([]); // Changed to array for multi-delete
 
   // Scene Graph state
   const [sceneGraph, setSceneGraph] = useState([]);
@@ -52,7 +52,7 @@ export function SceneProvider({ children }) {
   const redo = useCallback(() => {
     if (canRedo) {
       setIsRestoring(true);
-      setHistoryIndex(prev => prev - 1);
+      setHistoryIndex(prev => prev + 1); // Corrected from prev - 1 to prev + 1
     }
   }, [canRedo]);
 
@@ -65,11 +65,20 @@ export function SceneProvider({ children }) {
     setPrimitivesToAdd([]);
   }, []);
 
-  const deleteSelectedObject = useCallback(() => {
-    if (selectedObject) {
-      setObjectToDelete(selectedObject);
+  const deleteSelectedObjects = useCallback(() => {
+    if (selectedObjects.length > 0) {
+      setObjectsToDelete(selectedObjects);
     }
-  }, [selectedObject]);
+  }, [selectedObjects]);
+
+  const selectedObject = selectedObjects.length > 0 ? selectedObjects[selectedObjects.length - 1] : null;
+  const setSelectedObject = useCallback((obj) => {
+    if (obj) {
+      setSelectedObjects([obj]);
+    } else {
+      setSelectedObjects([]);
+    }
+  }, []);
 
 
   const value = {
@@ -77,8 +86,10 @@ export function SceneProvider({ children }) {
     setTool,
     selectionMode,
     setSelectionMode,
-    selectedObject,
-    setSelectedObject,
+    selectedObjects, // New
+    setSelectedObjects, // New
+    selectedObject, // Kept for single-selection contexts
+    setSelectedObject, // Kept for single-selection contexts
     primitivesToAdd,
     addPrimitive,
     clearPrimitivesToAdd,
@@ -105,9 +116,9 @@ export function SceneProvider({ children }) {
     canRedo,
     isRestoring,
     setIsRestoring,
-    objectToDelete,
-    setObjectToDelete,
-    deleteSelectedObject,
+    objectsToDelete, // New name
+    setObjectsToDelete, // New name
+    deleteSelectedObjects, // New name
     sceneGraph,
     setSceneGraph,
   };

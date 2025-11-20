@@ -32,10 +32,10 @@ import { useScene } from '@/components/nascad/scene-provider';
 
 
 const SceneItem = ({ node, level = 0 }) => {
-  const { selectedObject, setSelectedObject } = useScene();
+  const { selectedObjects, setSelectedObjects } = useScene();
   const [visible, setVisible] = useState(true); // This should be tied to actual object visibility later
 
-  const isSelected = selectedObject?.uuid === node.uuid;
+  const isSelected = selectedObjects.some(obj => obj.uuid === node.uuid);
 
   const getIcon = (type) => {
     switch (type) {
@@ -48,10 +48,20 @@ const SceneItem = ({ node, level = 0 }) => {
     }
   };
 
-  const handleSelect = () => {
-    // This is a simplified selection handler. We'd need to get the actual object from the viewport.
-    // For now, we can pass a simplified object with UUID to the provider.
-    setSelectedObject({ uuid: node.uuid });
+  const handleSelect = (event) => {
+    const objectToSelect = { uuid: node.uuid, name: node.name, type: node.type };
+    if (event.shiftKey) {
+        setSelectedObjects(prev => {
+            const isAlreadySelected = prev.some(obj => obj.uuid === node.uuid);
+            if (isAlreadySelected) {
+                return prev.filter(obj => obj.uuid !== node.uuid);
+            } else {
+                return [...prev, objectToSelect];
+            }
+        });
+    } else {
+        setSelectedObjects([objectToSelect]);
+    }
   };
 
   return (
@@ -120,7 +130,7 @@ const ToolButton = ({ tool, onClick, currentTool }) => (
 );
 
 export default function LeftPanel() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObject, sceneGraph } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObjects, sceneGraph } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
@@ -189,7 +199,7 @@ export default function LeftPanel() {
                   ))}
                    <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-10 w-10" onClick={deleteSelectedObject}>
+                            <Button variant="outline" size="icon" className="h-10 w-10" onClick={deleteSelectedObjects}>
                                 <Trash2 className="h-5 w-5" />
                             </Button>
                         </TooltipTrigger>

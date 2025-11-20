@@ -16,6 +16,8 @@ export default function Viewport() {
     setTool,
     selectionMode,
     setSelectionMode,
+    selectedObjects,
+    setSelectedObjects,
     selectedObject,
     setSelectedObject,
     primitivesToAdd,
@@ -37,9 +39,9 @@ export default function Viewport() {
     addHistoryState,
     isRestoring,
     setIsRestoring,
-    objectToDelete,
-    setObjectToDelete,
-    deleteSelectedObject,
+    objectsToDelete,
+    setObjectsToDelete,
+    deleteSelectedObjects,
     setSceneGraph,
   } = useScene();
   
@@ -53,9 +55,9 @@ export default function Viewport() {
   const objectsRef = useRef(new Map());
 
   const handleDeselect = useCallback(() => {
-    setSelectedObject(null);
+    setSelectedObjects([]);
     setSelectedSubComponent(null);
-  }, [setSelectedObject, setSelectedSubComponent]);
+  }, [setSelectedObjects, setSelectedSubComponent]);
 
   const buildSceneGraph = useCallback(() => {
     if (!sceneRef.current) return [];
@@ -357,7 +359,8 @@ export default function Viewport() {
         let current = intersects[0].object;
         while(current) {
             if(objectsRef.current.has(current.uuid)) {
-                clickedObjectData = { uuid: current.uuid };
+                const objData = objectsRef.current.get(current.uuid);
+                clickedObjectData = { uuid: current.uuid, name: objData.name, type: objData.type };
                 break;
             }
             current = current.parent;
@@ -365,7 +368,22 @@ export default function Viewport() {
       }
       
       if (selectionMode === 'object') {
-        setSelectedObject(clickedObjectData);
+        if (clickedObjectData) {
+          if (event.shiftKey) {
+            setSelectedObjects(prev => {
+              const isAlreadySelected = prev.some(obj => obj.uuid === clickedObjectData.uuid);
+              if (isAlreadySelected) {
+                return prev.filter(obj => obj.uuid !== clickedObjectData.uuid);
+              } else {
+                return [...prev, clickedObjectData];
+              }
+            });
+          } else {
+            setSelectedObjects([clickedObjectData]);
+          }
+        } else {
+            if(!event.shiftKey) handleDeselect();
+        }
         setSelectedSubComponent(null);
       } else if (clickedObjectData) {
         const clickedObject = objectsRef.current.get(clickedObjectData.uuid);
@@ -444,6 +462,9 @@ export default function Viewport() {
         setAnimationTime(newTime);
         if (newTime >= animationDuration) {
             setIsPlaying(false);
+            mixer.setTime(0); // Loop animation
+            setAnimationTime(0);
+            setIsPlaying(true);
         }
       }
 
@@ -468,7 +489,7 @@ export default function Viewport() {
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
             event.preventDefault();
             state.undo();
-      } else if ((event-metaKey || event.ctrlKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) {
+      } else if ((event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) {
             event.preventDefault();
             state.redo();
       }
@@ -484,7 +505,7 @@ export default function Viewport() {
         case 'escape': handleDeselect(); break;
         case 'delete':
         case 'backspace':
-            deleteSelectedObject();
+            deleteSelectedObjects();
             break;
         case ' ': event.preventDefault(); if(mixer) setIsPlaying(p => !p); break;
       }
@@ -546,6 +567,33 @@ export default function Viewport() {
     selectionVisualsRef.current = [];
     transformControls.detach();
     transformControls.visible = false;
+    
+    // Create visuals for all selected objects
+    selectedObjects.forEach(selObject => {
+        const actualObject = objectsRef.current.get(selObject.uuid);
+        if (!actualObject || !actualObject.isMesh) return;
+
+        const edges = new THREE.EdgesGeometry(actualObject.geometry, 1);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, depthTest: false });
+        const objectOutline = new THREE.LineSegments(edges, lineMaterial);
+        objectOutline.matrix.copy(actualObject.matrixWorld);
+        objectOutline.matrixAutoUpdate = false;
+        objectOutline.renderOrder = 1;
+        scene.add(objectOutline);
+        selectionVisualsRef.current.push(objectOutline);
+
+        const updateOutline = () => {
+            if (actualObject && objectOutline) {
+                objectOutline.matrix.copy(actualObject.matrixWorld);
+            }
+        };
+        transformControls.addEventListener('objectChange', updateOutline);
+        
+        const currentTC = transformControls;
+        const cleanup = () => currentTC.removeEventListener('objectChange', updateOutline);
+        selectionVisualsRef.current.push({ dispose: cleanup });
+    });
+
 
     if (!selectedObject) return;
 
@@ -617,32 +665,11 @@ export default function Viewport() {
           transformControls.visible = true;
       }
     } else if (selectionMode === 'object') {
-       if (actualObject.isMesh) {
-          const edges = new THREE.EdgesGeometry(actualObject.geometry, 1);
-          const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, depthTest: false });
-          const objectOutline = new THREE.LineSegments(edges, lineMaterial);
-          objectOutline.matrix.copy(actualObject.matrixWorld);
-          objectOutline.matrixAutoUpdate = false;
-          objectOutline.renderOrder = 1;
-          scene.add(objectOutline);
-          selectionVisualsRef.current.push(objectOutline);
-
-          const updateOutline = () => {
-              if (actualObject && objectOutline) {
-                  objectOutline.matrix.copy(actualObject.matrixWorld);
-              }
-          };
-          transformControls.addEventListener('objectChange', updateOutline);
-          
-          const currentTC = transformControls;
-          const cleanup = () => currentTC.removeEventListener('objectChange', updateOutline);
-          selectionVisualsRef.current.push({ dispose: cleanup });
-       }
-
       transformControls.attach(actualObject);
       transformControls.visible = true;
     }
-  }, [selectedObject, selectedSubComponent, selectionMode, tool]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedObjects, selectedSubComponent, selectionMode, tool]);
 
 
   // --- Effect for Adding Primitives ---
@@ -778,32 +805,34 @@ export default function Viewport() {
 
   // --- Effect for Deleting Objects ---
     useEffect(() => {
-        if (objectToDelete) {
-            const object = objectsRef.current.get(objectToDelete.uuid);
-            if (object) {
-                
-                // Recursively remove from map
-                object.traverse(child => {
-                    if (transformControlsRef.current?.object === child) {
-                        transformControlsRef.current.detach();
-                    }
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) {
-                        if(Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-                        else child.material.dispose();
-                    }
-                    objectsRef.current.delete(child.uuid);
-                });
+        if (objectsToDelete.length > 0) {
+            objectsToDelete.forEach(objToDelete => {
+                const object = objectsRef.current.get(objToDelete.uuid);
+                if (object) {
+                    
+                    // Recursively remove from map
+                    object.traverse(child => {
+                        if (transformControlsRef.current?.object === child) {
+                            transformControlsRef.current.detach();
+                        }
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if(Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                            else child.material.dispose();
+                        }
+                        objectsRef.current.delete(child.uuid);
+                    });
 
-                object.parent?.remove(object);
+                    object.parent?.remove(object);
+                }
+            });
 
-                handleDeselect();
-                addHistoryState(captureSceneState());
-                updateSceneGraph();
-            }
-            setObjectToDelete(null);
+            handleDeselect();
+            addHistoryState(captureSceneState());
+            updateSceneGraph();
+            setObjectsToDelete([]);
         }
-    }, [objectToDelete, setObjectToDelete, addHistoryState, captureSceneState, handleDeselect, updateSceneGraph]);
+    }, [objectsToDelete, setObjectsToDelete, addHistoryState, captureSceneState, handleDeselect, updateSceneGraph]);
 
 
   return <div ref={mountRef} className="w-full h-full" />;
