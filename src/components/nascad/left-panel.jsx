@@ -127,16 +127,16 @@ const SceneItem = ({ node, level = 0 }) => {
 };
 
 const selectionModes = [
-    { id: 'object', icon: Box, name: 'Object Select (1)' },
-    { id: 'vertex', icon: VertexIcon, name: 'Vertex Select (2)' },
-    { id: 'edge', icon: EdgeIcon, name: 'Edge Select (3)' },
-    { id: 'face', icon: FaceIcon, name: 'Face Select (4)' },
+    { id: 'object', icon: Box, name: 'Object' },
+    { id: 'vertex', icon: VertexIcon, name: 'Vertex' },
+    { id: 'edge', icon: EdgeIcon, name: 'Edge' },
+    { id: 'face', icon: FaceIcon, name: 'Face' },
 ];
 
 const transformTools = [
-    { id: 'translate', icon: Move, name: 'Move (W)' },
-    { id: 'rotate', icon: RotateCw, name: 'Rotate (E)' },
-    { id: 'scale', icon: Scale, name: 'Scale (R)' },
+    { id: 'translate', icon: Move, name: 'Move' },
+    { id: 'rotate', icon: RotateCw, name: 'Rotate' },
+    { id: 'scale', icon: Scale, name: 'Scale' },
 ];
 
 const modelingTools = [
@@ -151,19 +151,19 @@ const primitives = [
     { id: 'torus', icon: TorusIcon, name: 'Torus' },
 ];
 
-const ToolButton = ({ tool, onClick, currentTool }) => (
+const ToolButton = ({ tool, onClick, currentTool, tooltipText }) => (
     <Tooltip>
         <TooltipTrigger asChild>
-            <Button 
-                variant={currentTool === tool.id ? "secondary" : "outline"} 
-                size="icon" 
+             <Button
+                variant={currentTool === tool.id ? "secondary" : "ghost"}
+                className="flex flex-col items-center justify-center h-16 w-16 p-2"
                 onClick={onClick}
-                className="h-9 w-9 md:h-10 md:w-10"
             >
-                <tool.icon className="h-4 w-4 md:h-5 md:w-5" />
+                <tool.icon className="h-5 w-5 mb-1" />
+                <span className="text-xs">{tool.name}</span>
             </Button>
         </TooltipTrigger>
-        <TooltipContent><p>{tool.name}</p></TooltipContent>
+        <TooltipContent><p>{tooltipText || tool.name}</p></TooltipContent>
     </Tooltip>
 );
 
@@ -192,22 +192,24 @@ function LeftPanelContent() {
           <AccordionContent className="px-4 space-y-4">
             <TooltipProvider>
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Primitives</p>
-                <div className="grid grid-cols-4 gap-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Primitives</p>
+                <div className="grid grid-cols-4 gap-1">
                   {primitives.map(primitive => (
                       <Tooltip key={primitive.name}>
                           <TooltipTrigger asChild>
-                              <Button variant="outline" size="icon" className="h-10 w-10 md:h-12 md:w-12" onClick={() => addPrimitive(primitive.id)}>
-                                  <primitive.icon className="h-5 w-5 md:h-6 md:w-6" />
+                              <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={() => addPrimitive(primitive.id)}>
+                                  <primitive.icon className="h-6 w-6 mb-1" />
+                                   <span className="text-xs">{primitive.name}</span>
                               </Button>
                           </TooltipTrigger>
-                          <TooltipContent><p>{primitive.name}</p></TooltipContent>
+                          <TooltipContent><p>Add {primitive.name}</p></TooltipContent>
                       </Tooltip>
                   ))}
                   <Tooltip>
                       <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" className="h-10 w-10 md:h-12 md:w-12">
-                              <Plus className="h-5 w-5 md:h-6 md:w-6" />
+                          <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16">
+                              <Plus className="h-6 w-6 mb-1" />
+                              <span className="text-xs">Add</span>
                           </Button>
                       </TooltipTrigger>
                       <TooltipContent><p>Add</p></TooltipContent>
@@ -218,10 +220,10 @@ function LeftPanelContent() {
               <Separator />
 
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Selection Mode</p>
-                <div className="grid grid-cols-4 gap-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Selection Mode</p>
+                <div className="flex flex-wrap gap-1">
                   {selectionModes.map(mode => (
-                      <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} />
+                      <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select`} />
                   ))}
                 </div>
               </div>
@@ -229,15 +231,16 @@ function LeftPanelContent() {
               <Separator />
               
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Transform Tools</p>
-                <div className="grid grid-cols-4 gap-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Transform Tools</p>
+                <div className="flex flex-wrap gap-1">
                   {transformTools.map(t => (
                       <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
                   ))}
                    <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-9 w-9 md:h-10 md:w-10" onClick={deleteSelectedObjects}>
-                                <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
+                            <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={deleteSelectedObjects}>
+                                <Trash2 className="h-5 w-5 mb-1" />
+                                <span className="text-xs">Delete</span>
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent><p>Delete (Del)</p></TooltipContent>
@@ -248,8 +251,8 @@ function LeftPanelContent() {
               <Separator />
 
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Modeling Tools</p>
-                <div className="grid grid-cols-4 gap-2 mt-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Modeling Tools</p>
+                <div className="flex flex-wrap gap-1 mt-2">
                   {modelingTools.map(t => (
                        <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
                   ))}
