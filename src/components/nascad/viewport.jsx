@@ -291,15 +291,17 @@ export default function Viewport() {
 
     // --- Create new visuals based on selection ---
     if (selectedObject) {
-      // Always show edge outline for the selected object in any mode
-      const edges = new THREE.EdgesGeometry(selectedObject.geometry, 1);
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
-      const lineSegments = new THREE.LineSegments(edges, lineMaterial);
-      lineSegments.position.copy(selectedObject.position);
-      lineSegments.quaternion.copy(selectedObject.quaternion);
-      lineSegments.scale.copy(selectedObject.scale);
-      scene.add(lineSegments);
-      outlineRef.current = lineSegments;
+      // Show edge outline for the selected object, but only if no sub-component is selected
+      if (!selectedSubComponent) {
+        const edges = new THREE.EdgesGeometry(selectedObject.geometry, 1);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
+        const lineSegments = new THREE.LineSegments(edges, lineMaterial);
+        lineSegments.position.copy(selectedObject.position);
+        lineSegments.quaternion.copy(selectedObject.quaternion);
+        lineSegments.scale.copy(selectedObject.scale);
+        scene.add(lineSegments);
+        outlineRef.current = lineSegments;
+      }
 
       if (selectedSubComponent) {
           let helper;
@@ -394,5 +396,3 @@ export default function Viewport() {
 
   return <div ref={mountRef} className="w-full h-full" />;
 }
-
-    
