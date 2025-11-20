@@ -22,6 +22,8 @@ import {
   LayoutGrid,
   Plus,
   Trash2,
+  Camera,
+  Sun,
 } from 'lucide-react';
 import { useState } from 'react';
 import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
@@ -29,20 +31,50 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useScene } from '@/components/nascad/scene-provider';
 
 
-const SceneItem = ({ name, children, level = 0 }) => {
-  const [visible, setVisible] = useState(true);
+const SceneItem = ({ node, level = 0 }) => {
+  const { selectedObject, setSelectedObject } = useScene();
+  const [visible, setVisible] = useState(true); // This should be tied to actual object visibility later
+
+  const isSelected = selectedObject?.uuid === node.uuid;
+
+  const getIcon = (type) => {
+    switch (type) {
+      case 'PerspectiveCamera':
+        return <Camera className="w-4 h-4 mr-2 text-muted-foreground" />;
+      case 'DirectionalLight':
+        return <Sun className="w-4 h-4 mr-2 text-muted-foreground" />;
+      default:
+        return <LayoutGrid className="w-4 h-4 mr-2 text-muted-foreground" />;
+    }
+  };
+
+  const handleSelect = () => {
+    // This is a simplified selection handler. We'd need to get the actual object from the viewport.
+    // For now, we can pass a simplified object with UUID to the provider.
+    setSelectedObject({ uuid: node.uuid });
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between hover:bg-muted/50 rounded-md pr-2">
+      <div 
+        className={`flex items-center justify-between hover:bg-muted/50 rounded-md pr-2 cursor-pointer ${isSelected ? 'bg-primary/20' : ''}`}
+        onClick={handleSelect}
+      >
         <div className="flex items-center" style={{ paddingLeft: `${level * 1}rem` }}>
-          <LayoutGrid className="w-4 h-4 mr-2 text-muted-foreground" />
-          <span className="text-sm">{name}</span>
+          {getIcon(node.type)}
+          <span className="text-sm select-none">{node.name || node.type}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setVisible(!visible)}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setVisible(!visible); }}>
           {visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
         </Button>
       </div>
-      {children && <div className="pl-4">{children}</div>}
+      {node.children && node.children.length > 0 && (
+        <div className="pl-2">
+          {node.children.map(child => (
+            <SceneItem key={child.uuid} node={child} level={level + 1} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -88,7 +120,7 @@ const ToolButton = ({ tool, onClick, currentTool }) => (
 );
 
 export default function LeftPanel() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObject } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObject, sceneGraph } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
@@ -102,16 +134,9 @@ export default function LeftPanel() {
           <AccordionTrigger className="px-4 text-sm font-medium">Scene Graph</AccordionTrigger>
           <AccordionContent className="px-4 text-sm">
             <div className="space-y-1">
-              <SceneItem name="Main Camera" />
-              <SceneItem name="Directional Light" />
-              <SceneItem name="CharacterArmature">
-                <SceneItem name="Hips" level={1}>
-                  <SceneItem name="Spine" level={2}>
-                     <SceneItem name="Head" level={3} />
-                  </SceneItem>
-                </SceneItem>
-              </SceneItem>
-               <SceneItem name="Floor" />
+              {sceneGraph.map(node => (
+                <SceneItem key={node.uuid} node={node} />
+              ))}
             </div>
           </AccordionContent>
         </AccordionItem>

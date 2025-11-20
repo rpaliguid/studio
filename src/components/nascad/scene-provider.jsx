@@ -27,6 +27,9 @@ export function SceneProvider({ children }) {
   // Delete state
   const [objectToDelete, setObjectToDelete] = useState(null);
 
+  // Scene Graph state
+  const [sceneGraph, setSceneGraph] = useState([]);
+
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
   
@@ -49,7 +52,7 @@ export function SceneProvider({ children }) {
   const redo = useCallback(() => {
     if (canRedo) {
       setIsRestoring(true);
-      setHistoryIndex(prev => prev + 1);
+      setHistoryIndex(prev => prev - 1);
     }
   }, [canRedo]);
 
@@ -105,6 +108,8 @@ export function SceneProvider({ children }) {
     objectToDelete,
     setObjectToDelete,
     deleteSelectedObject,
+    sceneGraph,
+    setSceneGraph,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;

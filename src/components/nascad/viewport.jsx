@@ -40,6 +40,7 @@ export default function Viewport() {
     objectToDelete,
     setObjectToDelete,
     deleteSelectedObject,
+    setSceneGraph,
   } = useScene();
   
   const sceneRef = useRef(null);
@@ -56,11 +57,60 @@ export default function Viewport() {
     setSelectedSubComponent(null);
   }, [setSelectedObject, setSelectedSubComponent]);
 
+  const buildSceneGraph = useCallback(() => {
+    if (!sceneRef.current) return [];
+
+    const graph = [];
+    const processedUuids = new Set();
+
+    const buildNode = (object) => {
+      if (!object || processedUuids.has(object.uuid) || object.name === 'gridHelper' || object.isTransformControls || object.isLine) return null;
+      
+      processedUuids.add(object.uuid);
+
+      const node = {
+        uuid: object.uuid,
+        name: object.name || 'Object',
+        type: object.type,
+        children: [],
+      };
+
+      if (object.children && object.children.length > 0) {
+        object.children.forEach(child => {
+          const childNode = buildNode(child);
+          if (childNode) {
+            node.children.push(childNode);
+          }
+        });
+      }
+      
+      return node;
+    };
+    
+    sceneRef.current.children.forEach(object => {
+       // Only process top-level objects that aren't part of another object in the graph
+       if (!object.parent || object.parent === sceneRef.current) {
+         const node = buildNode(object);
+         if (node) {
+           graph.push(node);
+         }
+       }
+    });
+
+    return graph;
+  }, []);
+
+  const updateSceneGraph = useCallback(() => {
+    const newGraph = buildSceneGraph();
+    setSceneGraph(newGraph);
+  }, [buildSceneGraph, setSceneGraph]);
+
+
   const captureSceneState = useCallback(() => {
     if (!sceneRef.current) return null;
     const state = [];
-    sceneRef.current.children.forEach(child => {
-        if ((child.isMesh || child.isGroup || child.isScene) && child.uuid && child.name !== 'gridHelper') {
+    objectsRef.current.forEach(child => {
+        if ((child.isMesh || child.isGroup || child.isScene) && child.uuid) {
             const objData = {
                 uuid: child.uuid,
                 name: child.name,
@@ -68,7 +118,8 @@ export default function Viewport() {
                 position: child.position.clone(),
                 rotation: child.rotation.clone(),
                 scale: child.scale.clone(),
-                userData: JSON.parse(JSON.stringify(child.userData))
+                userData: JSON.parse(JSON.stringify(child.userData)),
+                parent: child.parent?.uuid
             };
 
             if (child.isMesh && child.geometry) {
@@ -79,15 +130,6 @@ export default function Viewport() {
                         index: geometry.index ? Array.from(geometry.index.array) : null,
                     };
                 }
-            } else if (child.isGroup || child.isScene) {
-                 // Traverse to find all mesh uuids for children
-                 const childUuids = [];
-                 child.traverse((c) => {
-                     if (c !== child && objectsRef.current.has(c.uuid)) {
-                         childUuids.push(c.uuid);
-                     }
-                 });
-                 objData.children = childUuids;
             }
             state.push(objData);
         }
@@ -100,36 +142,30 @@ export default function Viewport() {
     
     handleDeselect();
     
-    const newStateUuids = new Set(state.map(s => s.uuid));
+    const currentUuids = new Set(Array.from(objectsRef.current.keys()));
+    const stateUuids = new Set(state.map(s => s.uuid));
 
-    // Remove objects that are no longer in the state from the scene and the map
-    const toRemove = [];
-    objectsRef.current.forEach((obj, uuid) => {
-        if (!newStateUuids.has(uuid)) {
-            toRemove.push(uuid);
-        }
-    });
-
-    toRemove.forEach(uuid => {
-        const obj = objectsRef.current.get(uuid);
-        if (obj) {
-            sceneRef.current.remove(obj);
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach(m => m.dispose());
-                } else {
-                    obj.material.dispose();
+    // Remove objects no longer in state
+    currentUuids.forEach(uuid => {
+        if (!stateUuids.has(uuid)) {
+            const obj = objectsRef.current.get(uuid);
+            if (obj) {
+                obj.parent?.remove(obj);
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if(Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
                 }
+                objectsRef.current.delete(uuid);
             }
         }
-        objectsRef.current.delete(uuid);
     });
     
-    // First pass: create all objects
+    // Add/update objects from state
     state.forEach(objState => {
-      if (!objectsRef.current.has(objState.uuid)) {
-        let object;
+      let object = objectsRef.current.get(objState.uuid);
+
+      if (!object) {
         if (objState.geometry) {
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute('position', new THREE.Float32BufferAttribute(objState.geometry.position, 3));
@@ -144,16 +180,9 @@ export default function Viewport() {
         } else {
           return;
         }
-        object.uuid = objState.uuid; // Assign UUID immediately after creation
-        sceneRef.current.add(object);
+        object.uuid = objState.uuid;
         objectsRef.current.set(objState.uuid, object);
       }
-    });
-
-    // Second pass: configure and parent objects
-    state.forEach(objState => {
-      const object = objectsRef.current.get(objState.uuid);
-      if (!object) return;
 
       object.name = objState.name;
       object.position.copy(objState.position);
@@ -171,23 +200,20 @@ export default function Viewport() {
         object.geometry.computeVertexNormals();
         object.geometry.computeBoundingSphere();
       }
-
-      if ((object.isGroup || object.isScene) && objState.children) {
-        // Clear existing children first
-        while (object.children.length) {
-            object.remove(object.children[0]);
-        }
-        // Add new children
-        objState.children.forEach(childUuid => {
-          const childObject = objectsRef.current.get(childUuid);
-          if (childObject) {
-            object.add(childObject);
-          }
-        });
-      }
     });
 
-  }, [handleDeselect]);
+    // Second pass for parenting
+    state.forEach(objState => {
+        const object = objectsRef.current.get(objState.uuid);
+        const parent = objState.parent ? objectsRef.current.get(objState.parent) : sceneRef.current;
+        if (object && parent && object.parent !== parent) {
+            parent.add(object);
+        }
+    });
+
+    updateSceneGraph();
+
+  }, [handleDeselect, updateSceneGraph]);
   
   const findClosestVertex = useCallback((intersect, object) => {
       const positionAttribute = object.geometry.getAttribute('position');
@@ -239,7 +265,10 @@ export default function Viewport() {
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
     camera.position.set(5, 5, 5);
     camera.lookAt(0, 0, 0);
+    camera.name = "Main Camera";
+    scene.add(camera);
     cameraRef.current = camera;
+    objectsRef.current.set(camera.uuid, camera);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
@@ -262,7 +291,9 @@ export default function Viewport() {
     scene.add(ambientLight);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(5, 10, 7.5);
+    directionalLight.name = "Directional Light";
     scene.add(directionalLight);
+    objectsRef.current.set(directionalLight.uuid, directionalLight);
 
     const onDraggingChanged = (event) => {
       orbitControls.enabled = !event.value;
@@ -275,14 +306,17 @@ export default function Viewport() {
     const onObjectChange = () => {
         if (!selectedSubComponent || !selectedObject || !transformControls.object) return;
     
-        const positionAttribute = selectedObject.geometry.getAttribute('position');
+        const objectWithGeometry = objectsRef.current.get(selectedObject.uuid);
+        if (!objectWithGeometry || !objectWithGeometry.isMesh) return;
+
+        const positionAttribute = objectWithGeometry.geometry.getAttribute('position');
         const gizmo = transformControls.object;
     
         if (selectedSubComponent.type === 'vertex') {
-            const localPosition = selectedObject.worldToLocal(gizmo.position.clone());
+            const localPosition = objectWithGeometry.worldToLocal(gizmo.position.clone());
             positionAttribute.setXYZ(selectedSubComponent.index, localPosition.x, localPosition.y, localPosition.z);
             positionAttribute.needsUpdate = true;
-            selectedObject.geometry.computeVertexNormals();
+            objectWithGeometry.geometry.computeVertexNormals();
         } else if (selectedSubComponent.type === 'face') {
             const gizmoMatrix = gizmo.matrixWorld.clone();
             const invOriginalMatrix = selectedSubComponent.gizmoMatrixInverse;
@@ -291,14 +325,14 @@ export default function Viewport() {
             selectedSubComponent.indices.forEach((vertexIndex, i) => {
                 const originalVertex = selectedSubComponent.originalVertices[i].clone();
                 const newWorldPos = originalVertex.applyMatrix4(deltaTransform);
-                const newLocalPos = selectedObject.worldToLocal(newWorldPos);
+                const newLocalPos = objectWithGeometry.worldToLocal(newWorldPos);
                 
                 positionAttribute.setXYZ(vertexIndex, newLocalPos.x, newLocalPos.y, newLocalPos.z);
             });
     
             positionAttribute.needsUpdate = true;
-            selectedObject.geometry.computeVertexNormals();
-            selectedObject.geometry.computeBoundingSphere();
+            objectWithGeometry.geometry.computeVertexNormals();
+            objectWithGeometry.geometry.computeBoundingSphere();
         }
     };
     transformControls.addEventListener('objectChange', onObjectChange);
@@ -318,37 +352,43 @@ export default function Viewport() {
       const meshes = Array.from(objectsRef.current.values()).filter(o => o.isMesh);
       const intersects = raycaster.intersectObjects(meshes, true);
       
-      let clickedObject = null;
+      let clickedObjectData = null;
       if (intersects.length > 0) {
         let current = intersects[0].object;
-        while(current.parent && current.parent !== scene) {
+        while(current) {
             if(objectsRef.current.has(current.uuid)) {
+                clickedObjectData = { uuid: current.uuid };
                 break;
             }
             current = current.parent;
         }
-        clickedObject = current;
       }
-      const intersectedObject = clickedObject;
       
       if (selectionMode === 'object') {
-        setSelectedObject(intersectedObject);
+        setSelectedObject(clickedObjectData);
         setSelectedSubComponent(null);
-      } else if (intersectedObject && intersectedObject.isMesh) {
-         if (selectedObject !== intersectedObject) {
-          setSelectedObject(intersectedObject);
+      } else if (clickedObjectData) {
+        const clickedObject = objectsRef.current.get(clickedObjectData.uuid);
+        if (!clickedObject || !clickedObject.isMesh) {
+            setSelectedObject(clickedObjectData);
+            setSelectedSubComponent(null);
+            return;
+        }
+
+         if (selectedObject?.uuid !== clickedObject.uuid) {
+          setSelectedObject(clickedObjectData);
           setSelectedSubComponent(null);
           return; 
         }
         
-        const geometry = selectedObject.geometry;
+        const geometry = clickedObject.geometry;
         const positionAttribute = geometry.getAttribute('position');
 
         if (selectionMode === 'vertex') {
-          const closestVertex = findClosestVertex(intersects[0], selectedObject);
+          const closestVertex = findClosestVertex(intersects[0], clickedObject);
           if (closestVertex) {
             const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertex.index);
-            selectedObject.localToWorld(vertexPosition);
+            clickedObject.localToWorld(vertexPosition);
             setSelectedSubComponent({ type: 'vertex', index: closestVertex.index, position: vertexPosition });
           } else {
             setSelectedSubComponent(null);
@@ -364,7 +404,7 @@ export default function Viewport() {
             const faceIndices = [geometry.index.getX(faceIndex), geometry.index.getY(faceIndex), geometry.index.getZ(faceIndex)];
             
             const originalVertices = faceIndices.map(index => 
-              new THREE.Vector3().fromBufferAttribute(positionAttribute, index).applyMatrix4(selectedObject.matrixWorld)
+              new THREE.Vector3().fromBufferAttribute(positionAttribute, index).applyMatrix4(clickedObject.matrixWorld)
             );
             
             const faceCentroid = new THREE.Vector3();
@@ -373,7 +413,7 @@ export default function Viewport() {
 
             const gizmo = new THREE.Object3D();
             gizmo.position.copy(faceCentroid);
-            const worldNormal = intersects[0].face.normal.clone().transformDirection(selectedObject.matrixWorld);
+            const worldNormal = intersects[0].face.normal.clone().transformDirection(clickedObject.matrixWorld);
             gizmo.lookAt(gizmo.position.clone().add(worldNormal));
             gizmo.updateMatrixWorld(true);
 
@@ -387,9 +427,6 @@ export default function Viewport() {
         } else {
           setSelectedSubComponent(null);
         }
-      } else if (intersectedObject) {
-         setSelectedObject(intersectedObject);
-         setSelectedSubComponent(null);
       } else {
         handleDeselect();
       }
@@ -454,6 +491,13 @@ export default function Viewport() {
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    updateSceneGraph();
+    // Save initial state
+    setTimeout(() => {
+        addHistoryState(captureSceneState());
+        updateSceneGraph();
+    }, 100);
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
@@ -505,6 +549,9 @@ export default function Viewport() {
 
     if (!selectedObject) return;
 
+    const actualObject = objectsRef.current.get(selectedObject.uuid);
+    if (!actualObject) return;
+
     if (selectedSubComponent) {
       let gizmoHelper;
 
@@ -520,8 +567,8 @@ export default function Viewport() {
 
         gizmoHelper = new THREE.Object3D();
         gizmoHelper.position.copy(selectedSubComponent.position);
-      } else if (selectedSubComponent.type === 'face' && selectedObject.isMesh) {
-        const positionAttribute = selectedObject.geometry.getAttribute('position');
+      } else if (selectedSubComponent.type === 'face' && actualObject.isMesh) {
+        const positionAttribute = actualObject.geometry.getAttribute('position');
         const faceIndices = selectedSubComponent.indices;
         
         // Use a BufferGeometry to create the highlight face
@@ -537,7 +584,7 @@ export default function Viewport() {
         
         const faceVisual = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: false }));
         
-        faceVisual.matrix.copy(selectedObject.matrixWorld);
+        faceVisual.matrix.copy(actualObject.matrixWorld);
         faceVisual.matrixAutoUpdate = false;
         faceVisual.renderOrder = 1;
         scene.add(faceVisual);
@@ -549,7 +596,7 @@ export default function Viewport() {
           .add(new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[2]))
           .divideScalar(3);
 
-        const worldCentroid = centroid.clone().applyMatrix4(selectedObject.matrixWorld);
+        const worldCentroid = centroid.clone().applyMatrix4(actualObject.matrixWorld);
         
         gizmoHelper = selectedSubComponent.gizmo || new THREE.Object3D();
         gizmoHelper.position.copy(worldCentroid);
@@ -558,7 +605,7 @@ export default function Viewport() {
             new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[0]),
             new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[1]),
             new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[2])
-        ).getNormal(new THREE.Vector3()).clone().transformDirection(selectedObject.matrixWorld).normalize();
+        ).getNormal(new THREE.Vector3()).clone().transformDirection(actualObject.matrixWorld).normalize();
 
         gizmoHelper.lookAt(gizmoHelper.position.clone().add(worldNormal));
       }
@@ -570,19 +617,19 @@ export default function Viewport() {
           transformControls.visible = true;
       }
     } else if (selectionMode === 'object') {
-       if (selectedObject.isMesh) {
-          const edges = new THREE.EdgesGeometry(selectedObject.geometry, 1);
+       if (actualObject.isMesh) {
+          const edges = new THREE.EdgesGeometry(actualObject.geometry, 1);
           const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, depthTest: false });
           const objectOutline = new THREE.LineSegments(edges, lineMaterial);
-          objectOutline.matrix.copy(selectedObject.matrixWorld);
+          objectOutline.matrix.copy(actualObject.matrixWorld);
           objectOutline.matrixAutoUpdate = false;
           objectOutline.renderOrder = 1;
           scene.add(objectOutline);
           selectionVisualsRef.current.push(objectOutline);
 
           const updateOutline = () => {
-              if (selectedObject && objectOutline) {
-                  objectOutline.matrix.copy(selectedObject.matrixWorld);
+              if (actualObject && objectOutline) {
+                  objectOutline.matrix.copy(actualObject.matrixWorld);
               }
           };
           transformControls.addEventListener('objectChange', updateOutline);
@@ -592,7 +639,7 @@ export default function Viewport() {
           selectionVisualsRef.current.push({ dispose: cleanup });
        }
 
-      transformControls.attach(selectedObject);
+      transformControls.attach(actualObject);
       transformControls.visible = true;
     }
   }, [selectedObject, selectedSubComponent, selectionMode, tool]);
@@ -619,21 +666,24 @@ export default function Viewport() {
             return;
         }
 
+        // Ensure the geometry is indexed for sub-component selection
         if (!geometry.index) {
           geometry = geometry.toIndexed();
         }
         
         geometry.computeVertexNormals();
         const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = primitiveType.charAt(0).toUpperCase() + primitiveType.slice(1);
         mesh.position.y = 0.5;
         sceneRef.current.add(mesh);
         objectsRef.current.set(mesh.uuid, mesh);
       });
       
       addHistoryState(captureSceneState());
+      updateSceneGraph();
       clearPrimitivesToAdd();
     }
-  }, [primitivesToAdd, clearPrimitivesToAdd, addHistoryState, captureSceneState]);
+  }, [primitivesToAdd, clearPrimitivesToAdd, addHistoryState, captureSceneState, updateSceneGraph]);
 
 
   // --- Effect for Importing Files ---
@@ -651,8 +701,8 @@ export default function Viewport() {
                   child.geometry = child.geometry.toIndexed();
               }
               child.geometry.computeVertexNormals();
-              objectsRef.current.set(child.uuid, child);
           }
+          objectsRef.current.set(child.uuid, child);
         });
         
         if (animations && animations.length > 0) {
@@ -670,8 +720,9 @@ export default function Viewport() {
             setIsPlaying(false);
         }
         scene.add(object);
-        objectsRef.current.set(object.uuid, object);
+        
         addHistoryState(captureSceneState());
+        updateSceneGraph();
       };
 
       reader.onload = (e) => {
@@ -706,7 +757,7 @@ export default function Viewport() {
       
       setFileToImport(null);
     }
-  }, [fileToImport, setFileToImport, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying, addHistoryState, captureSceneState]);
+  }, [fileToImport, setFileToImport, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying, addHistoryState, captureSceneState, updateSceneGraph]);
 
 
   // --- Effect for Animation Control ---
@@ -730,14 +781,29 @@ export default function Viewport() {
         if (objectToDelete) {
             const object = objectsRef.current.get(objectToDelete.uuid);
             if (object) {
-                sceneRef.current.remove(object);
-                objectsRef.current.delete(objectToDelete.uuid);
+                
+                // Recursively remove from map
+                object.traverse(child => {
+                    if (transformControlsRef.current?.object === child) {
+                        transformControlsRef.current.detach();
+                    }
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if(Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material.dispose();
+                    }
+                    objectsRef.current.delete(child.uuid);
+                });
+
+                object.parent?.remove(object);
+
                 handleDeselect();
                 addHistoryState(captureSceneState());
+                updateSceneGraph();
             }
             setObjectToDelete(null);
         }
-    }, [objectToDelete, setObjectToDelete, addHistoryState, captureSceneState, handleDeselect]);
+    }, [objectToDelete, setObjectToDelete, addHistoryState, captureSceneState, handleDeselect, updateSceneGraph]);
 
 
   return <div ref={mountRef} className="w-full h-full" />;
