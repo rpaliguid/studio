@@ -271,7 +271,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a2035);
+    scene.background = new THREE.Color(0x4b5563);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -316,7 +316,7 @@ export default function Viewport() {
     scene.add(floor);
 
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
+    const gridHelper = new THREE.GridHelper(50, 50, 0xe5e7eb, 0xe5e7eb);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
