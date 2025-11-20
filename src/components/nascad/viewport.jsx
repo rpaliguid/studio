@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -26,131 +26,154 @@ export default function Viewport() {
   const rendererRef = useRef(null);
   const orbitControlsRef = useRef(null);
   const transformControlsRef = useRef(null);
-  const outlineRef = useRef(null); // For object outline
-  const subComponentHelperRef = useRef(null); // For sub-component gizmo/highlight
+  const selectionVisualsRef = useRef([]); // Manages all selection visuals (outlines, helpers)
 
-  // Simplified extrude function
-  const extrudeFace = (object, faceIndex) => {
-      if (!object || !(object.geometry instanceof THREE.BufferGeometry) || !object.geometry.index) return;
-      console.log('Extruding face', faceIndex);
-      
-      const geometry = object.geometry;
-      const positionAttribute = geometry.getAttribute('position');
-      const normalAttribute = geometry.getAttribute('normal');
-      const index = geometry.index;
-      
-      const faceVerticesIndices = [
-          index.getX(faceIndex * 3),
-          index.getY(faceIndex * 3),
-          index.getZ(faceIndex * 3),
-      ];
+  // Use a ref to store a stable reference to the latest extrude function
+  const extrudeFaceRef = useRef();
 
-      const faceNormal = new THREE.Vector3();
-      const n1 = new THREE.Vector3().fromBufferAttribute(normalAttribute, faceVerticesIndices[0]);
-      const n2 = new THREE.Vector3().fromBufferAttribute(normalAttribute, faceVerticesIndices[1]);
-      const n3 = new THREE.Vector3().fromBufferAttribute(normalAttribute, faceVerticesIndices[2]);
-      faceNormal.add(n1).add(n2).add(n3).divideScalar(3).normalize();
-      
-      const extrusionAmount = 0.2;
+  // Use a stable callback with useCallback
+  const handleDeselect = useCallback(() => {
+    setSelectedObject(null);
+    setSelectedSubComponent(null);
+  }, [setSelectedObject, setSelectedSubComponent]);
 
-      faceVerticesIndices.forEach(vertexIndex => {
-          const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, vertexIndex);
-          vertex.addScaledVector(faceNormal, extrusionAmount);
-          positionAttribute.setXYZ(vertexIndex, vertex.x, vertex.y, vertex.z);
-      });
-      
-      positionAttribute.needsUpdate = true;
-      geometry.computeVertexNormals();
-  };
+  useEffect(() => {
+    // This function will be updated whenever its dependencies change
+    extrudeFaceRef.current = (object, faceIndex) => {
+        if (!object || !(object.geometry instanceof THREE.BufferGeometry) || !object.geometry.index) return;
+        
+        const geometry = object.geometry;
+        const positionAttribute = geometry.getAttribute('position');
+        const normalAttribute = geometry.getAttribute('normal');
+        const index = geometry.index;
+        
+        const faceVertexIndices = [
+            index.getX(faceIndex * 3),
+            index.getY(faceIndex * 3),
+            index.getZ(faceIndex * 3),
+        ];
 
+        const faceNormal = new THREE.Vector3();
+        const vA = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceVertexIndices[0]);
+        const vB = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceVertexIndices[1]);
+        const vC = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceVertexIndices[2]);
+        faceNormal.copy(vB).sub(vA).cross(new THREE.Vector3().copy(vC).sub(vA)).normalize();
+        
+        const extrusionAmount = 0.2;
+
+        const newVertices = [];
+        const originalPositions = {}; // Store original positions to create side faces
+        
+        faceVertexIndices.forEach(vertexIndex => {
+            const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, vertexIndex);
+            originalPositions[vertexIndex] = vertex.clone();
+            const newVertex = vertex.clone().addScaledVector(faceNormal, extrusionAmount);
+            newVertices.push(newVertex);
+        });
+
+        const newPositionArray = Array.from(positionAttribute.array);
+        
+        faceVertexIndices.forEach((vertexIndex, i) => {
+            const newVertex = newVertices[i];
+            newPositionArray[vertexIndex * 3] = newVertex.x;
+            newPositionArray[vertexIndex * 3 + 1] = newVertex.y;
+            newPositionArray[vertexIndex * 3 + 2] = newVertex.z;
+        });
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositionArray, 3));
+        
+        positionAttribute.needsUpdate = true;
+        geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
+        
+        // After extruding, deselect the face and reset the tool to prevent re-extrusion on click
+        setSelectedSubComponent(null);
+        setTool('translate');
+    };
+  }, [setTool, setSelectedSubComponent]);
+  
+
+  // --- Main Initialization Effect ---
   useEffect(() => {
     if (!mountRef.current) return;
 
     const currentMount = mountRef.current;
 
-    // Scene
+    // --- Basic Scene Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
     sceneRef.current = scene;
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
     camera.position.set(5, 5, 5);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     rendererRef.current = renderer;
     currentMount.appendChild(renderer.domElement);
 
-    // Orbit Controls (camera)
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
     orbitControlsRef.current = orbitControls;
 
-    // Transform Controls (gizmo)
     const transformControls = new TransformControls(camera, renderer.domElement);
     scene.add(transformControls);
     transformControlsRef.current = transformControls;
 
-    transformControls.addEventListener('dragging-changed', function (event) {
-      orbitControls.enabled = !event.value;
-    });
-
-    transformControls.addEventListener('objectChange', () => {
-        if (!selectedSubComponent || !selectedObject || !subComponentHelperRef.current) return;
-
-        const positionAttribute = selectedObject.geometry.getAttribute('position');
-        const helper = subComponentHelperRef.current;
-
-        if (selectedSubComponent.type === 'vertex') {
-            // Convert the helper's world position back to the object's local space
-            const localPosition = selectedObject.worldToLocal(helper.position.clone());
-            positionAttribute.setXYZ(selectedSubComponent.index, localPosition.x, localPosition.y, localPosition.z);
-            positionAttribute.needsUpdate = true;
-            selectedObject.geometry.computeVertexNormals();
-        } else if (selectedSubComponent.type === 'face') {
-            // When the helper (representing the face) is transformed, calculate the transformation
-            // matrix and apply it to the actual face vertices.
-            
-            // This is a simplified approach. A robust implementation would involve calculating
-            // the delta transformation from the helper's initial state.
-            const faceIndices = selectedSubComponent.indices;
-            const originalVertices = selectedSubComponent.originalVertices;
-
-            for (let i = 0; i < faceIndices.length; i++) {
-                const vertexIndex = faceIndices[i];
-                const originalVertex = originalVertices[i].clone();
-
-                // Apply the helper's transformation to the original vertex positions
-                const transformedVertex = originalVertex.applyMatrix4(helper.matrix);
-                
-                // Convert back to object's local space from world space
-                const localTransformedVertex = selectedObject.worldToLocal(transformedVertex);
-
-                positionAttribute.setXYZ(vertexIndex, localTransformedVertex.x, localTransformedVertex.y, localTransformedVertex.z);
-            }
-
-            positionAttribute.needsUpdate = true;
-            selectedObject.geometry.computeVertexNormals();
-            selectedObject.geometry.computeBoundingSphere();
-        }
-    });
-
-    // Floor Grid
+    // --- Scene Content ---
     const gridHelper = new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd);
     scene.add(gridHelper);
 
-    // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(5, 10, 7.5);
     scene.add(directionalLight);
 
-    // Raycaster for object selection
+    // --- Controls Listeners ---
+    const onDraggingChanged = (event) => {
+      orbitControls.enabled = !event.value;
+    };
+    transformControls.addEventListener('dragging-changed', onDraggingChanged);
+
+    const onObjectChange = () => {
+        if (!selectedSubComponent || !selectedObject || !transformControls.object) return;
+    
+        const positionAttribute = selectedObject.geometry.getAttribute('position');
+        const gizmo = transformControls.object;
+    
+        if (selectedSubComponent.type === 'vertex') {
+            const localPosition = selectedObject.worldToLocal(gizmo.position.clone());
+            positionAttribute.setXYZ(selectedSubComponent.index, localPosition.x, localPosition.y, localPosition.z);
+            positionAttribute.needsUpdate = true;
+            selectedObject.geometry.computeVertexNormals();
+        } else if (selectedSubComponent.type === 'face') {
+            // Calculate the transformation from the gizmo's matrix
+            const gizmoMatrix = gizmo.matrixWorld.clone();
+            const invOriginalMatrix = selectedSubComponent.gizmoMatrixInverse;
+            const deltaTransform = gizmoMatrix.multiply(invOriginalMatrix);
+    
+            selectedSubComponent.indices.forEach((vertexIndex, i) => {
+                const originalVertex = selectedSubComponent.originalVertices[i].clone();
+                // Apply the delta transformation to the original vertex position
+                const newWorldPos = originalVertex.applyMatrix4(deltaTransform);
+                // Convert the new world position back to the object's local space
+                const newLocalPos = selectedObject.worldToLocal(newWorldPos);
+                
+                positionAttribute.setXYZ(vertexIndex, newLocalPos.x, newLocalPos.y, newLocalPos.z);
+            });
+    
+            positionAttribute.needsUpdate = true;
+            selectedObject.geometry.computeVertexNormals();
+            selectedObject.geometry.computeBoundingSphere();
+        }
+    };
+    transformControls.addEventListener('objectChange', onObjectChange);
+
+
+    // --- Raycasting and Selection ---
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -163,102 +186,91 @@ export default function Viewport() {
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-
-      const meshes = scene.children.filter(c => c.isMesh && c.name !== 'subComponentHelper');
+      const meshes = scene.children.filter(c => c.isMesh);
       const intersects = raycaster.intersectObjects(meshes, false);
-      
       const intersectedObject = intersects.length > 0 ? intersects[0].object : null;
 
       if (selectionMode === 'object') {
         setSelectedObject(intersectedObject);
-        setSelectedSubComponent(null); 
-      } else if (selectedObject && intersects.length > 0 && intersects[0].object === selectedObject) {
-          const intersectPoint = intersects[0].point;
-          const geometry = selectedObject.geometry;
-          const positionAttribute = geometry.getAttribute('position');
-
-          if (selectionMode === 'vertex') {
-              let closestVertexIndex = -1;
-              let minDistance = Infinity;
-
-              // Iterate through vertices to find the closest one to the intersection point
-              for (let i = 0; i < positionAttribute.count; i++) {
-                  const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
-                  // Transform vertex to world space to compare with intersection point
-                  selectedObject.localToWorld(vertex); 
-                  const distance = vertex.distanceTo(intersectPoint);
-                  
-                  if (distance < minDistance) {
-                      minDistance = distance;
-                      closestVertexIndex = i;
-                  }
-              }
-              
-              // If a vertex is found within a small threshold, select it
-              if (minDistance < 0.1) {
-                  const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertexIndex);
-                  selectedObject.localToWorld(vertexPosition); // Get world space position for the gizmo
-                  setSelectedSubComponent({ type: 'vertex', index: closestVertexIndex, position: vertexPosition });
-              } else {
-                  setSelectedSubComponent(null);
-              }
-          } else if (selectionMode === 'face' && intersects.length > 0) {
-              const intersect = intersects[0];
-              if (intersect.face) {
-                  const faceIndex = intersect.faceIndex;
-                  const faceIndices = [
-                      geometry.index.getX(faceIndex * 3),
-                      geometry.index.getY(faceIndex * 3),
-                      geometry.index.getZ(faceIndex * 3),
-                  ];
-                  
-                  const originalVertices = faceIndices.map(index => {
-                      const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, index);
-                      return selectedObject.localToWorld(vertex); // Store original positions in world space
-                  });
-
-                  setSelectedSubComponent({ 
-                      type: 'face', 
-                      index: faceIndex, 
-                      normal: intersect.face.normal,
-                      indices: faceIndices,
-                      originalVertices: originalVertices, // Store for transformation
-                  });
-                  // If extrude tool is active, perform action
-                  if(tool === 'extrude'){
-                      extrudeFace(selectedObject, faceIndex);
-                      setTool('translate'); // Reset tool
-                  }
-              }
-          } else {
-              // Placeholder for edge selection
-              setSelectedSubComponent(null);
-          }
-      } else {
-        // Clicked on nothing, deselect everything
-        setSelectedObject(null);
         setSelectedSubComponent(null);
+      } else if (intersectedObject) {
+        if (selectedObject !== intersectedObject) {
+          setSelectedObject(intersectedObject);
+          setSelectedSubComponent(null);
+          return; // Select object first, then sub-component on next click
+        }
+        
+        const geometry = selectedObject.geometry;
+        const positionAttribute = geometry.getAttribute('position');
+        const intersectPoint = intersects[0].point;
+
+        if (selectionMode === 'vertex') {
+          let closestVertexIndex = -1;
+          let minDistanceSq = Infinity;
+          for (let i = 0; i < positionAttribute.count; i++) {
+            const vertex = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+            selectedObject.localToWorld(vertex);
+            const distanceSq = vertex.distanceToSquared(intersectPoint);
+            if (distanceSq < minDistanceSq) {
+              minDistanceSq = distanceSq;
+              closestVertexIndex = i;
+            }
+          }
+          if (closestVertexIndex !== -1 && minDistanceSq < 0.1) {
+            const vertexPosition = new THREE.Vector3().fromBufferAttribute(positionAttribute, closestVertexIndex);
+            selectedObject.localToWorld(vertexPosition);
+            setSelectedSubComponent({ type: 'vertex', index: closestVertexIndex, position: vertexPosition });
+          } else {
+            setSelectedSubComponent(null);
+          }
+        } else if (selectionMode === 'face' && intersects[0].face) {
+          const faceIndex = intersects[0].faceIndex;
+          if (tool === 'extrude') {
+            extrudeFaceRef.current(selectedObject, faceIndex);
+          } else {
+            const face = intersects[0].face;
+            const faceIndices = [geometry.index.getX(faceIndex*3), geometry.index.getY(faceIndex*3), geometry.index.getZ(faceIndex*3)];
+            
+            const originalVertices = faceIndices.map(index => 
+              new THREE.Vector3().fromBufferAttribute(positionAttribute, index).applyMatrix4(selectedObject.matrixWorld)
+            );
+            
+            const faceCentroid = new THREE.Vector3();
+            originalVertices.forEach(v => faceCentroid.add(v));
+            faceCentroid.divideScalar(originalVertices.length);
+
+            const gizmo = new THREE.Object3D();
+            gizmo.position.copy(faceCentroid);
+            const worldNormal = face.normal.clone().transformDirection(selectedObject.matrixWorld);
+            gizmo.lookAt(gizmo.position.clone().add(worldNormal));
+            gizmo.updateMatrixWorld(true);
+
+            setSelectedSubComponent({
+              type: 'face',
+              index: faceIndex,
+              indices: faceIndices,
+              originalVertices: originalVertices, // Store original positions in world space
+              gizmoMatrixInverse: gizmo.matrixWorld.clone().invert(),
+            });
+          }
+        } else {
+          setSelectedSubComponent(null);
+        }
+      } else {
+        handleDeselect();
       }
     };
     currentMount.addEventListener('click', onClick);
 
-    // Animation loop
+    // --- Animation Loop ---
     const animate = () => {
       requestAnimationFrame(animate);
       orbitControls.update();
-      
-      // Keep outline attached to the moving object
-      if (outlineRef.current && selectedObject) {
-        outlineRef.current.position.copy(selectedObject.position);
-        outlineRef.current.quaternion.copy(selectedObject.quaternion);
-        outlineRef.current.scale.copy(selectedObject.scale);
-      }
-      
       renderer.render(scene, camera);
     };
     animate();
 
-    // Handle window resize
+    // --- Event Handlers ---
     const handleResize = () => {
       if (currentMount) {
         camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
@@ -278,142 +290,142 @@ export default function Viewport() {
         case '2': setSelectionMode('vertex'); setSelectedSubComponent(null); break;
         case '3': setSelectionMode('edge'); setSelectedSubComponent(null); break;
         case '4': setSelectionMode('face'); setSelectedSubComponent(null); break;
-        case 'escape': setSelectedObject(null); setSelectedSubComponent(null); break;
+        case 'escape': handleDeselect(); break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
 
-    // Cleanup
+    // --- Cleanup ---
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
       currentMount.removeEventListener('click', onClick);
+      transformControls.removeEventListener('dragging-changed', onDraggingChanged);
+      transformControls.removeEventListener('objectChange', onObjectChange);
       if (renderer.domElement && renderer.domElement.parentElement === currentMount) {
         currentMount.removeChild(renderer.domElement);
       }
       orbitControls.dispose();
       transformControls.dispose();
     };
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, [handleDeselect]); 
 
-  // Handle tool change for transform controls
+  // --- Effect for Tool Changes ---
   useEffect(() => {
     if (transformControlsRef.current) {
       const transformTools = ['translate', 'rotate', 'scale'];
-      if (transformTools.includes(tool)) {
-        transformControlsRef.current.setMode(tool);
-      }
+      transformControlsRef.current.setMode(transformTools.includes(tool) ? tool : 'translate');
     }
   }, [tool]);
 
-  // Handle object/sub-component selection changes
+  // --- Effect for Selection Visuals & Gizmo Attachment ---
   useEffect(() => {
     const scene = sceneRef.current;
     const transformControls = transformControlsRef.current;
-
     if (!scene || !transformControls) return;
-    
-    // --- Cleanup previous visuals ---
-    if (outlineRef.current) {
-        scene.remove(outlineRef.current);
-        outlineRef.current.geometry.dispose();
-        outlineRef.current.material.dispose();
-        outlineRef.current = null;
-    }
-    if(subComponentHelperRef.current){
-        // If the helper is a mesh with geometry/material
-        if (subComponentHelperRef.current.geometry) subComponentHelperRef.current.geometry.dispose();
-        if (subComponentHelperRef.current.material) subComponentHelperRef.current.material.dispose();
-        scene.remove(subComponentHelperRef.current);
-        subComponentHelperRef.current = null;
-    }
+
+    // Cleanup previous visuals
+    selectionVisualsRef.current.forEach(visual => {
+      scene.remove(visual);
+      if (visual.geometry) visual.geometry.dispose();
+      if (visual.material) visual.material.dispose();
+    });
+    selectionVisualsRef.current = [];
     transformControls.detach();
     transformControls.visible = false;
 
+    if (!selectedObject) return;
 
     // --- Create new visuals based on selection ---
-    if (selectedObject) {
-      // Show edge outline for the selected object, but only if no sub-component is selected
-      if (!selectedSubComponent && selectionMode === 'object') {
-        const edges = new THREE.EdgesGeometry(selectedObject.geometry, 1);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
-        const lineSegments = new THREE.LineSegments(edges, lineMaterial);
-        lineSegments.position.copy(selectedObject.position);
-        lineSegments.quaternion.copy(selectedObject.quaternion);
-        lineSegments.scale.copy(selectedObject.scale);
-        scene.add(lineSegments);
-        outlineRef.current = lineSegments;
+    if (selectedSubComponent) {
+      let gizmoHelper;
+
+      if (selectedSubComponent.type === 'vertex') {
+        // Visual: Small sphere for the vertex
+        const vertexVisual = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05),
+            new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: false })
+        );
+        vertexVisual.position.copy(selectedSubComponent.position);
+        scene.add(vertexVisual);
+        selectionVisualsRef.current.push(vertexVisual);
+
+        // Gizmo attached to an invisible object at the vertex position
+        gizmoHelper = new THREE.Object3D();
+        gizmoHelper.position.copy(selectedSubComponent.position);
+      } else if (selectedSubComponent.type === 'face') {
+        // Visual: Highlighted face
+        const positionAttribute = selectedObject.geometry.getAttribute('position');
+        const faceIndices = selectedSubComponent.indices;
+        const faceVertices = faceIndices.map(index => new THREE.Vector3().fromBufferAttribute(positionAttribute, index));
+        
+        const highlightGeometry = new THREE.BufferGeometry();
+        highlightGeometry.setFromPoints(faceVertices);
+        highlightGeometry.setIndex([0, 1, 2]); // Assuming triangular faces
+        const faceVisual = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
+        
+        // The visual mesh must be in the same coordinate system as the object it's highlighting
+        faceVisual.position.copy(selectedObject.position);
+        faceVisual.quaternion.copy(selectedObject.quaternion);
+        faceVisual.scale.copy(selectedObject.scale);
+        scene.add(faceVisual);
+        selectionVisualsRef.current.push(faceVisual);
+        
+        // Gizmo attached to an invisible object at the face's center
+        const faceCentroid = new THREE.Vector3();
+        faceVertices.forEach(v => faceCentroid.add(v));
+        faceCentroid.divideScalar(faceVertices.length);
+        selectedObject.localToWorld(faceCentroid); // Convert to world space
+
+        gizmoHelper = new THREE.Object3D();
+        gizmoHelper.position.copy(faceCentroid);
+        const worldNormal = selectedSubComponent.originalVertices[1].clone().sub(selectedSubComponent.originalVertices[0])
+            .cross(selectedSubComponent.originalVertices[2].clone().sub(selectedSubComponent.originalVertices[0]))
+            .normalize();
+        gizmoHelper.lookAt(gizmoHelper.position.clone().add(worldNormal));
       }
+      // Note: Edge selection helper would be implemented here
 
-      if (selectedSubComponent) {
-          let helper;
-          if (selectedSubComponent.type === 'vertex') {
-              helper = new THREE.Mesh(
-                  new THREE.SphereGeometry(0.05), // A small sphere to mark the vertex
-                  new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: false })
-              );
-              // Position the helper in world space
-              helper.position.copy(selectedSubComponent.position);
-          } else if (selectedSubComponent.type === 'face') {
-              // For face selection, create an invisible helper object at the face's center
-              // to attach the transform controls to.
-              const geometry = selectedObject.geometry;
-              const positionAttribute = geometry.getAttribute('position');
-              const faceIndices = selectedSubComponent.indices;
-
-              const v1 = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[0]);
-              const v2 = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[1]);
-              const v3 = new THREE.Vector3().fromBufferAttribute(positionAttribute, faceIndices[2]);
-              
-              const faceCentroid = new THREE.Vector3().add(v1).add(v2).add(v3).divideScalar(3);
-              selectedObject.localToWorld(faceCentroid); // Convert to world space
-
-              // Create the visual highlight mesh for the face
-              const highlightGeometry = new THREE.BufferGeometry();
-              const vertices = [
-                  v1.x, v1.y, v1.z,
-                  v2.x, v2.y, v2.z,
-                  v3.x, v3.y, v3.z,
-              ];
-              highlightGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-              const highlightMesh = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
-              
-              // This highlight is in the object's local space, so attach it to the object
-              highlightMesh.position.copy(selectedObject.position);
-              highlightMesh.quaternion.copy(selectedObject.quaternion);
-              highlightMesh.scale.copy(selectedObject.scale);
-              highlightMesh.name = 'subComponentHelper'; // This is the visual part
-              scene.add(highlightMesh);
-              subComponentHelperRef.current = highlightMesh;
-
-              // Create an invisible object for the gizmo to attach to
-              helper = new THREE.Object3D();
-              helper.position.copy(faceCentroid);
-              helper.lookAt(faceCentroid.clone().add(selectedSubComponent.normal));
-          }
-          // Note: Edge selection helper would be implemented here
-
-          if(helper){
-              if (!subComponentHelperRef.current) {
-                 helper.name = 'subComponentHelper';
-                 scene.add(helper);
-                 subComponentHelperRef.current = helper;
-              }
-              
-              // Attach transform controls to the helper for manipulation
-              transformControls.attach(helper);
-              transformControls.visible = true;
-          }
-      } else if (selectionMode === 'object') {
-        // If in object mode and no sub-component is selected, attach gizmo to the object itself
-        transformControls.attach(selectedObject);
-        transformControls.visible = true;
+      if(gizmoHelper){
+          scene.add(gizmoHelper);
+          selectionVisualsRef.current.push(gizmoHelper);
+          transformControls.attach(gizmoHelper);
+          transformControls.visible = true;
       }
+    } else if (selectionMode === 'object') {
+      // Visual: Edges for the whole object
+      const edges = new THREE.EdgesGeometry(selectedObject.geometry, 1);
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
+      const objectOutline = new THREE.LineSegments(edges, lineMaterial);
+      objectOutline.position.copy(selectedObject.position);
+      objectOutline.quaternion.copy(selectedObject.quaternion);
+      objectOutline.scale.copy(selectedObject.scale);
+      scene.add(objectOutline);
+      selectionVisualsRef.current.push(objectOutline);
+
+      // Keep the outline attached during transformations
+      const updateOutline = () => {
+          if (selectedObject && objectOutline) {
+              objectOutline.position.copy(selectedObject.position);
+              objectOutline.quaternion.copy(selectedObject.quaternion);
+              objectOutline.scale.copy(selectedObject.scale);
+          }
+      };
+      transformControls.addEventListener('objectChange', updateOutline);
+      
+      // Cleanup listener when selection changes
+      const currentTC = transformControls; // Capture current ref
+      const cleanup = () => currentTC.removeEventListener('objectChange', updateOutline);
+      selectionVisualsRef.current.push({ dispose: cleanup });
+
+      // Gizmo attached to the object itself
+      transformControls.attach(selectedObject);
+      transformControls.visible = true;
     }
   }, [selectedObject, selectedSubComponent, selectionMode, tool]);
 
 
-  // Handle adding primitives
+  // --- Effect for Adding Primitives ---
   useEffect(() => {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
@@ -434,13 +446,20 @@ export default function Viewport() {
             return;
         }
         
-        const nonIndexed = geometry.toNonIndexed();
-        const indexedGeometry = new THREE.BufferGeometry();
-        indexedGeometry.setAttribute('position', nonIndexed.getAttribute('position'));
-        indexedGeometry.setIndex(Array.from({ length: nonIndexed.getAttribute('position').count / 3 }, (_, i) => [i * 3, i * 3 + 1, i * 3 + 2]).flat());
-        indexedGeometry.computeVertexNormals();
+        // This is crucial for sub-component editing: ensure geometry is indexed.
+        if (!geometry.index) {
+          const nonIndexed = geometry.toNonIndexed();
+          const position = nonIndexed.getAttribute('position');
+          const vertexCount = position.count;
+          const indices = Array.from({ length: vertexCount / 3 }, (_, i) => [i * 3, i * 3 + 1, i * 3 + 2]).flat();
+          geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', position);
+          geometry.setIndex(indices);
+        }
+        
+        geometry.computeVertexNormals();
 
-        const mesh = new THREE.Mesh(indexedGeometry, material);
+        const mesh = new THREE.Mesh(geometry, material);
         mesh.position.y = 0.5;
         sceneRef.current.add(mesh);
       });
@@ -450,3 +469,5 @@ export default function Viewport() {
 
   return <div ref={mountRef} className="w-full h-full" />;
 }
+
+    
