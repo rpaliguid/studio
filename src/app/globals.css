@@ -32,9 +32,9 @@
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 220 40% 10%; /* Navy */
     --foreground: 210 40% 98%;
-    --card: 224 71% 4%;
+    --card: 220 40% 14%;
     --card-foreground: 210 40% 98%;
     --popover: 224 71% 4%;
     --popover-foreground: 210 40% 98%;
@@ -44,12 +44,12 @@
     --secondary-foreground: 210 40% 98%;
     --muted: 215 28% 17%;
     --muted-foreground: 215 20% 65%;
-    --accent: 215 28% 17%;
+    --accent: 215 28% 20%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 85.7% 97.3%;
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
+    --border: 215 28% 22%;
+    --input: 215 28% 22%;
     --ring: 217 91% 60%; /* Blue */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -66,4 +66,19 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
 }

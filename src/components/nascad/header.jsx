@@ -33,8 +33,7 @@ export default function Header() {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}>
           <PanelLeft className="h-5 w-5" />
         </Button>
-        <Bot className="w-6 h-6 text-primary hidden sm:block" />
-        <h1 className="text-lg md:text-xl font-semibold tracking-tighter text-foreground">Nascad</h1>
+        <h1 className="text-xl md:text-2xl font-headline font-bold tracking-tight text-foreground">Nascad</h1>
       </div>
       <div className="flex items-center gap-1 md:gap-2 ml-2 md:ml-4">
         <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} className="h-8 w-8">
