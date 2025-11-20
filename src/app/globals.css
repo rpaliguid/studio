@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 220 13% 18%;
+    --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-    --card: 220 13% 18%;
+    --card: 224 71% 4%;
     --card-foreground: 210 40% 98%;
-    --popover: 220 13% 18%;
+    --popover: 224 71% 4%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 32% 27%;
+    --primary: 25 95% 53%; /* Orange */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 32% 22%;
+    --muted: 215 28% 17%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 32% 27%;
+    --accent: 215 28% 17%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 85.7% 97.3%;
-    --border: 217 32% 27%;
-    --input: 217 32% 27%;
-    --ring: 210 40% 98%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 25 95% 53%; /* Orange */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -31,25 +31,25 @@
     --radius: 0.5rem;
   }
   .dark {
-    --background: 220 13% 18%;
+    --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-    --card: 220 13% 18%;
+    --card: 224 71% 4%;
     --card-foreground: 210 40% 98%;
-    --popover: 220 13% 18%;
+    --popover: 224 71% 4%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 32% 27%;
+    --primary: 25 95% 53%; /* Orange */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 32% 22%;
+    --muted: 215 28% 17%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 32% 27%;
+    --accent: 215 28% 17%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 85.7% 97.3%;
-    --border: 217 32% 27%;
-    --input: 217 32% 27%;
-    --ring: 210 40% 98%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 25 95% 53%; /* Orange */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;

@@ -1,10 +1,12 @@
 'use client';
+import { useState, useEffect } from 'react';
 import Header from '@/components/nascad/header';
 import LeftPanel from '@/components/nascad/left-panel';
 import Viewport from '@/components/nascad/viewport';
 import { SceneProvider, useScene } from '@/components/nascad/scene-provider';
 import { cn } from '@/lib/utils';
 import Timeline from '@/components/nascad/timeline';
+import SplashScreen from '@/components/nascad/splash-screen';
 
 function NascadLayout() {
   const { isLeftPanelOpen } = useScene();
@@ -30,9 +32,18 @@ function NascadLayout() {
 }
 
 export default function NascadEditor() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000); // Show splash screen for 2 seconds
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <SceneProvider>
-      <NascadLayout />
+      {isLoading ? <SplashScreen /> : <NascadLayout />}
     </SceneProvider>
   );
 }

@@ -30,23 +30,23 @@ export default function Header() {
   return (
     <header className="flex items-center h-14 px-2 md:px-4 shrink-0 border-b border-border z-20 bg-card">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}>
-          <PanelLeft className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}>
+          <PanelLeft className="h-5 w-5" />
         </Button>
         <Bot className="w-6 h-6 text-primary hidden sm:block" />
         <h1 className="text-lg md:text-xl font-semibold tracking-tighter text-foreground">Nascad</h1>
       </div>
       <div className="flex items-center gap-1 md:gap-2 ml-2 md:ml-4">
-        <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} className="h-8 w-8">
-          <Undo className="h-4 w-4" />
+        <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} className="h-8 w-8 text-primary">
+          <Undo className="h-5 w-5" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo} className="h-8 w-8">
-          <Redo className="h-4 w-4" />
+        <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo} className="h-8 w-8 text-primary">
+          <Redo className="h-5 w-5" />
         </Button>
       </div>
        <div className="flex items-center gap-1 md:gap-2 ml-2 md:ml-4">
-        <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!mixer} className="h-8 w-8">
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!mixer} className="h-8 w-8 text-primary">
+          {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
         </Button>
       </div>
       <div className="flex items-center gap-2 ml-auto">
