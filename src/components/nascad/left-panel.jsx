@@ -24,6 +24,7 @@ import {
 import { useState } from 'react';
 import { VertexIcon, EdgeIcon, FaceIcon } from '@/components/icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useScene } from '@/components/nascad/scene-provider';
 
 
 const SceneItem = ({ name, children, level = 0 }) => {
@@ -45,26 +46,27 @@ const SceneItem = ({ name, children, level = 0 }) => {
 };
 
 const tools = [
-    { icon: Move, name: 'Move' },
-    { icon: RotateCw, name: 'Rotate' },
-    { icon: Scale, name: 'Scale' },
-    { icon: GitCommitHorizontal, name: 'Extrude' },
-    { icon: Scissors, name: 'Bevel' },
+    { id: 'translate', icon: Move, name: 'Move' },
+    { id: 'rotate', icon: RotateCw, name: 'Rotate' },
+    { id: 'scale', icon: Scale, name: 'Scale' },
+    { id: 'extrude', icon: GitCommitHorizontal, name: 'Extrude' },
+    { id: 'bevel', icon: Scissors, name: 'Bevel' },
 ];
 
 const selectionModes = [
-    { icon: VertexIcon, name: 'Vertex Select' },
-    { icon: EdgeIcon, name: 'Edge Select' },
-    { icon: FaceIcon, name: 'Face Select' },
+    { id: 'vertex', icon: VertexIcon, name: 'Vertex Select' },
+    { id: 'edge', icon: EdgeIcon, name: 'Edge Select' },
+    { id: 'face', icon: FaceIcon, name: 'Face Select' },
 ]
 
 const primitives = [
-    { icon: Box, name: 'Cube' },
-    { icon: Circle, name: 'Sphere' },
-    { icon: Database, name: 'Cylinder' },
+    { id: 'cube', icon: Box, name: 'Cube' },
+    { id: 'sphere', icon: Circle, name: 'Sphere' },
+    { id: 'cylinder', icon: Database, name: 'Cylinder' },
 ];
 
 export default function LeftPanel() {
+  const { setTool, setSelectionMode, addPrimitive } = useScene();
   return (
     <aside className="w-72 border-r border-border bg-card overflow-y-auto">
       <Accordion type="multiple" defaultValue={['scene-graph', 'toolbox']} className="w-full">
@@ -90,14 +92,14 @@ export default function LeftPanel() {
           <AccordionContent className="px-4">
             <TooltipProvider>
               <div className="grid grid-cols-4 gap-2">
-                {primitives.map(tool => (
-                    <Tooltip key={tool.name}>
+                {primitives.map(primitive => (
+                    <Tooltip key={primitive.name}>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-12 w-12">
-                                <tool.icon className="h-6 w-6" />
+                            <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => addPrimitive(primitive.id)}>
+                                <primitive.icon className="h-6 w-6" />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent><p>{tool.name}</p></TooltipContent>
+                        <TooltipContent><p>{primitive.name}</p></TooltipContent>
                     </Tooltip>
                 ))}
                  <Tooltip>
@@ -110,14 +112,14 @@ export default function LeftPanel() {
                 </Tooltip>
               </div>
               <div className="grid grid-cols-4 gap-2 mt-4">
-                 {selectionModes.map(tool => (
-                     <Tooltip key={tool.name}>
+                 {selectionModes.map(mode => (
+                     <Tooltip key={mode.name}>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon">
-                                <tool.icon className="h-5 w-5" />
+                            <Button variant="outline" size="icon" onClick={() => setSelectionMode(mode.id)}>
+                                <mode.icon className="h-5 w-5" />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent><p>{tool.name}</p></TooltipContent>
+                        <TooltipContent><p>{mode.name}</p></TooltipContent>
                     </Tooltip>
                 ))}
               </div>
@@ -125,7 +127,7 @@ export default function LeftPanel() {
                 {tools.map(tool => (
                      <Tooltip key={tool.name}>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon">
+                            <Button variant="outline" size="icon" onClick={() => setTool(tool.id)}>
                                 <tool.icon className="h-5 w-5" />
                             </Button>
                         </TooltipTrigger>
