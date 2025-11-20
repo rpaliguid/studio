@@ -760,7 +760,7 @@ export default function Viewport() {
       primitivesToAdd.forEach(primitiveType => {
         if (primitiveType === 'torus') {
           const loader = new GLTFLoader();
-          loader.load('https://cdn.glitch.global/68b2a272-e034-45d6-8832-c1161245a4a5/torus.glb?v=1716398939215', (gltf) => {
+          loader.load('https://cdn.glitch.me/68b2a272-e034-45d6-8832-c1161245a4a5/torus.glb', (gltf) => {
             const object = gltf.scene;
             handleLoadedModel(object, [], primitiveType);
           });
