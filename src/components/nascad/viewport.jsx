@@ -272,7 +272,7 @@ export default function Viewport() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xadb9d4);
+    scene.background = new THREE.Color(0x909090);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -322,9 +322,9 @@ export default function Viewport() {
     scene.add(gridHelper);
 
     // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
     
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(10, 20, 5);
     directionalLight.castShadow = true;
     directionalLight.name = "Directional Light";
