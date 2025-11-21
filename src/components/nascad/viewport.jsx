@@ -768,7 +768,7 @@ export default function Viewport() {
         }
 
         let geometry;
-        const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
+        const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.6);
         const material = new THREE.MeshStandardMaterial({
           color: randomColor,
           metalness: 0.1,
@@ -828,7 +828,7 @@ export default function Viewport() {
           child.castShadow = true;
           child.receiveShadow = true;
           
-          const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
+          const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.6);
           const newMaterial = new THREE.MeshStandardMaterial({
             color: randomColor,
             metalness: 0.1,
