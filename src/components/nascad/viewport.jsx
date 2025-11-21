@@ -47,6 +47,7 @@ export default function Viewport() {
     previewRequested,
     setPreviewRequested,
     setPreviewImage,
+    isWireframe
   } = useScene();
   
   const mountRef = useRef(null);
@@ -771,7 +772,8 @@ export default function Viewport() {
         const material = new THREE.MeshStandardMaterial({
           color: randomColor,
           metalness: 0.1,
-          roughness: 0.5
+          roughness: 0.5,
+          wireframe: isWireframe,
         });
         
         switch (primitiveType) {
@@ -817,22 +819,32 @@ export default function Viewport() {
       clearPrimitivesToAdd();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [primitivesToAdd, clearPrimitivesToAdd, addHistoryState, captureSceneState, updateSceneGraph]);
+  }, [primitivesToAdd, clearPrimitivesToAdd, addHistoryState, captureSceneState, updateSceneGraph, isWireframe]);
 
   const handleLoadedModel = useCallback((object, animations, name = 'Imported') => {
-    const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
     object.name = name.charAt(0).toUpperCase() + name.slice(1);
     object.traverse((child) => {
       if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
           
+          const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.8);
           const newMaterial = new THREE.MeshStandardMaterial({
             color: randomColor,
             metalness: 0.1,
             roughness: 0.5,
+            wireframe: isWireframe,
           });
-          if(child.material.map) newMaterial.map = child.material.map;
+
+          // Dispose old material if it exists
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+            } else {
+                child.material.dispose();
+            }
+          }
+
           child.material = newMaterial;
           
           if (!child.geometry.index) {
@@ -863,7 +875,7 @@ export default function Viewport() {
     
     addHistoryState(captureSceneState());
     updateSceneGraph();
-  }, [addHistoryState, captureSceneState, updateSceneGraph, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying]);
+  }, [addHistoryState, captureSceneState, updateSceneGraph, setMixer, setAnimationActions, setAnimationDuration, setAnimationTime, setIsPlaying, isWireframe]);
 
   // --- Effect for Importing Files ---
   useEffect(() => {
@@ -940,6 +952,21 @@ export default function Viewport() {
       setPreviewRequested(false);
     }
   }, [previewRequested, setPreviewRequested, setPreviewImage]);
+
+  // --- Effect for Wireframe mode ---
+  useEffect(() => {
+    if (sceneRef.current) {
+        sceneRef.current.traverse((object) => {
+            if (object.isMesh && object.material) {
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(m => m.wireframe = isWireframe);
+                } else {
+                    object.material.wireframe = isWireframe;
+                }
+            }
+        });
+    }
+  }, [isWireframe]);
 
 
   return <div ref={mountRef} className="w-full h-full" />;

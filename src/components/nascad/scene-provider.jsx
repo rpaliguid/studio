@@ -48,6 +48,9 @@ export function SceneProvider({ children }) {
   // Preview state
   const [previewRequested, setPreviewRequested] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+
+  // Wireframe state
+  const [isWireframe, setIsWireframe] = useState(false);
   
   useEffect(() => {
     setIsLeftPanelOpen(!isMobile);
@@ -177,6 +180,8 @@ export function SceneProvider({ children }) {
     setPreviewRequested,
     previewImage,
     setPreviewImage,
+    isWireframe,
+    setIsWireframe,
   };
 
   return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;

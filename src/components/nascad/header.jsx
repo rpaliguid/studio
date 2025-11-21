@@ -1,11 +1,11 @@
 'use client';
-import { FileUp, FileDown, Bot, Undo, Redo, Play, Pause, PanelLeft, Eye } from 'lucide-react';
+import { FileUp, FileDown, Bot, Undo, Redo, Play, Pause, PanelLeft, Eye, BoxSelect } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useScene } from './scene-provider';
 import { useRef } from 'react';
 
 export default function Header() {
-  const { setFileToImport, undo, redo, canUndo, canRedo, isPlaying, setIsPlaying, mixer, isLeftPanelOpen, setIsLeftPanelOpen, setPreviewRequested } = useScene();
+  const { setFileToImport, undo, redo, canUndo, canRedo, isPlaying, setIsPlaying, mixer, isLeftPanelOpen, setIsLeftPanelOpen, setPreviewRequested, isWireframe, setIsWireframe } = useScene();
   const fileInputRef = useRef(null);
 
   const handleImportClick = () => {
@@ -56,6 +56,10 @@ export default function Header() {
           className="hidden"
           accept=".gltf,.glb"
         />
+        <Button variant={isWireframe ? 'secondary' : 'outline'} size="sm" onClick={() => setIsWireframe(!isWireframe)}>
+            <BoxSelect className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Wireframe</span>
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setPreviewRequested(true)}>
           <Eye className="mr-2 h-4 w-4" />
           <span className="hidden sm:inline">Preview</span>
