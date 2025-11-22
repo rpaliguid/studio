@@ -961,7 +961,7 @@ export default function Viewport() {
                 if (Array.isArray(object.material)) {
                     object.material.forEach(m => m.wireframe = isWireframe);
                 } else {
-                    object.material.wireframe = isWirefare;
+                    object.material.wireframe = isWireframe;
                 }
             }
         });
