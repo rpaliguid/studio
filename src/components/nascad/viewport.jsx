@@ -317,7 +317,7 @@ export default function Viewport() {
     scene.add(floor);
 
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0xe0e0e0, 0xe0e0e0);
+    const gridHelper = new THREE.GridHelper(50, 50, 0x00ffff, 0x00ffff);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
@@ -961,7 +961,7 @@ export default function Viewport() {
                 if (Array.isArray(object.material)) {
                     object.material.forEach(m => m.wireframe = isWireframe);
                 } else {
-                    object.material.wireframe = isWireframe;
+                    object.material.wireframe = isWirefare;
                 }
             }
         });
