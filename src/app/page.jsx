@@ -39,7 +39,7 @@ export default function NascadEditor() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 3000); // Show splash screen for 3 seconds
+    }, 2000); // Show splash screen for 3 seconds
     return () => clearTimeout(timer);
   }, []);
 
