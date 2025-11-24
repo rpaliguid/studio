@@ -32,7 +32,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useScene } from '@/components/nascad/scene-provider';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const SceneItem = ({ node, level = 0 }) => {
   const { selectedObjects, setSelectedObjects, getObjectAndAllChildren } = useScene();
@@ -167,8 +168,34 @@ const ToolButton = ({ tool, onClick, currentTool, tooltipText }) => (
     </Tooltip>
 );
 
+function ExtrudeToolPanel() {
+    // const { extrude, setExtrude } = useScene();
+
+    // const handleExtrude = () => {
+    //     extrude.action(extrude.distance);
+    // };
+
+    return (
+        <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Extrude Options</p>
+            <div className="px-2 space-y-2">
+                <Label htmlFor="extrude-distance">Distance</Label>
+                <Input 
+                    id="extrude-distance" 
+                    type="number" 
+                    // value={extrude.distance} 
+                    // onChange={(e) => setExtrude(prev => ({ ...prev, distance: parseFloat(e.target.value) }))}
+                    step={0.1}
+                />
+                <Button // onClick={handleExtrude} 
+                size="sm" className="w-full">Apply Extrude</Button>
+            </div>
+        </div>
+    );
+}
+
 function LeftPanelContent() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObjects, sceneGraph } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObjects, sceneGraph, extrude } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
@@ -191,73 +218,79 @@ function LeftPanelContent() {
           <AccordionTrigger className="px-4 text-sm font-medium">Toolbox</AccordionTrigger>
           <AccordionContent className="px-4 space-y-4">
             <TooltipProvider>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Primitives</p>
-                <div className="grid grid-cols-4 gap-1">
-                  {primitives.map(primitive => (
-                      <Tooltip key={primitive.name}>
+              {/* {tool === 'extrude' && extrude.action ? (
+                  <ExtrudeToolPanel />
+              ) : ( */}
+                <>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Primitives</p>
+                    <div className="grid grid-cols-4 gap-1">
+                      {primitives.map(primitive => (
+                          <Tooltip key={primitive.name}>
+                              <TooltipTrigger asChild>
+                                  <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={() => addPrimitive(primitive.id)}>
+                                      <primitive.icon className="h-6 w-6 mb-1" />
+                                       <span className="text-xs">{primitive.name}</span>
+                                  </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Add {primitive.name}</p></TooltipContent>
+                          </Tooltip>
+                      ))}
+                      <Tooltip>
                           <TooltipTrigger asChild>
-                              <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={() => addPrimitive(primitive.id)}>
-                                  <primitive.icon className="h-6 w-6 mb-1" />
-                                   <span className="text-xs">{primitive.name}</span>
+                              <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16">
+                                  <Plus className="h-6 w-6 mb-1" />
+                                  <span className="text-xs">Add</span>
                               </Button>
                           </TooltipTrigger>
-                          <TooltipContent><p>Add {primitive.name}</p></TooltipContent>
+                          <TooltipContent><p>Add</p></TooltipContent>
                       </Tooltip>
-                  ))}
-                  <Tooltip>
-                      <TooltipTrigger asChild>
-                          <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16">
-                              <Plus className="h-6 w-6 mb-1" />
-                              <span className="text-xs">Add</span>
-                          </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Add</p></TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
+                    </div>
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Selection Mode</p>
-                <div className="flex flex-wrap gap-1">
-                  {selectionModes.map(mode => (
-                      <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select`} />
-                  ))}
-                </div>
-              </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Selection Mode</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectionModes.map(mode => (
+                          <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select`} />
+                      ))}
+                    </div>
+                  </div>
 
-              <Separator />
-              
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Transform Tools</p>
-                <div className="flex flex-wrap gap-1">
-                  {transformTools.map(t => (
-                      <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
-                  ))}
-                   <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={deleteSelectedObjects}>
-                                <Trash2 className="h-5 w-5 mb-1" />
-                                <span className="text-xs">Delete</span>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Delete (Del)</p></TooltipContent>
-                    </Tooltip>
-                </div>
-              </div>
+                  <Separator />
+                  
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Transform Tools</p>
+                    <div className="flex flex-wrap gap-1">
+                      {transformTools.map(t => (
+                          <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
+                      ))}
+                       <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={deleteSelectedObjects}>
+                                    <Trash2 className="h-5 w-5 mb-1" />
+                                    <span className="text-xs">Delete</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Delete (Del)</p></TooltipContent>
+                        </Tooltip>
+                    </div>
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Modeling Tools</p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {modelingTools.map(t => (
-                       <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
-                  ))}
-                </div>
-              </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Modeling Tools</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {modelingTools.map(t => (
+                           <ToolButton key={t.id} tool={t} onClick={() => setTool(t.id)} currentTool={tool} />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              {/* )} */}
             </TooltipProvider>
           </AccordionContent>
         </AccordionItem>

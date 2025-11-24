@@ -7,6 +7,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { useScene } from './scene-provider';
+// import { threeMeshToOpenCascade, openCascadeToThreeMesh } from '@/lib/opencascade-service';
 
 export default function Viewport() {
   const {
@@ -47,7 +48,9 @@ export default function Viewport() {
     previewRequested,
     setPreviewRequested,
     setPreviewImage,
-    isWireframe
+    isWireframe,
+    oc,
+    setExtrude,
   } = useScene();
   
   const mountRef = useRef(null);
@@ -499,6 +502,7 @@ export default function Viewport() {
               indices: faceIndices,
               originalVertices: originalVertices,
               gizmoMatrixInverse: gizmo.matrixWorld.clone().invert(),
+              worldNormal,
             });
         } else {
           setSelectedSubComponent(null);
@@ -619,9 +623,13 @@ export default function Viewport() {
   useEffect(() => {
     if (transformControlsRef.current) {
       const transformTools = ['translate', 'rotate', 'scale'];
-      transformControlsRef.current.setMode(transformTools.includes(tool) ? tool : 'translate');
+      if(tool === 'extrude' && selectionMode === 'face') {
+        transformControlsRef.current.setMode('translate');
+      } else {
+        transformControlsRef.current.setMode(transformTools.includes(tool) ? tool : 'translate');
+      }
     }
-  }, [tool]);
+  }, [tool, selectionMode]);
 
   // --- Effect for Selection Visuals & Gizmo Attachment ---
   useEffect(() => {
@@ -639,6 +647,9 @@ export default function Viewport() {
     selectionVisualsRef.current = [];
     transformControls.detach();
     transformControls.visible = false;
+    
+    // Reset extrude tool
+    setExtrude(prev => ({...prev, action: null}));
     
     // Create visuals for all selected objects
     selectedObjects.forEach(selObject => {
@@ -738,9 +749,75 @@ export default function Viewport() {
         ).getNormal(new THREE.Vector3()).clone().transformDirection(actualObject.matrixWorld).normalize();
 
         gizmoHelper.lookAt(gizmoHelper.position.clone().add(worldNormal));
+        
+        if (tool === 'extrude') {
+          // const extrudeAction = (distance) => {
+          //     if (!oc || !actualObject || !selectedSubComponent) return;
+              
+          //     const ocShape = threeMeshToOpenCascade(oc, actualObject);
+              
+          //     const faceFinder = new oc.TopExp_Explorer_1();
+          //     faceFinder.Init(ocShape, oc.TopAbs_ShapeEnum.TopAbs_FACE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+          //     let faceIndex = 0;
+          //     let targetFace = null;
+          //     while (faceFinder.More()) {
+          //         if (faceIndex === selectedSubComponent.index) {
+          //             targetFace = oc.TopoDS.Face_1(faceFinder.Current());
+          //             break;
+          //         }
+          //         faceFinder.Next();
+          //         faceIndex++;
+          //     }
+
+          //     if (targetFace) {
+          //       const vec = new oc.gp_Vec_4(
+          //           selectedSubComponent.worldNormal.x * distance, 
+          //           selectedSubComponent.worldNormal.y * distance, 
+          //           selectedSubComponent.worldNormal.z * distance
+          //       );
+          //       const prism = new oc.BRepPrimAPI_MakePrism_1(targetFace, vec, false, true);
+          //       const extrudedShape = prism.Shape();
+          //       const fusedShape = new oc.BRepAlgoAPI_Fuse_3(ocShape, extrudedShape);
+          //       fusedShape.Build(new oc.Message_ProgressRange_1());
+          //       const finalShape = fusedShape.Shape();
+
+          //       const { mesh } = openCascadeToThreeMesh(oc, finalShape);
+
+          //       if (mesh) {
+          //           const newObject = mesh;
+          //           newObject.name = actualObject.name;
+          //           newObject.uuid = actualObject.uuid; // Keep same UUID to replace it
+          //           newObject.position.copy(actualObject.position);
+          //           newObject.rotation.copy(actualObject.rotation);
+          //           newObject.scale.copy(actualObject.scale);
+          //           newObject.material = actualObject.material.clone();
+
+          //           scene.remove(actualObject);
+          //           objectsRef.current.delete(actualObject.uuid);
+          //           scene.add(newObject);
+          //           objectsRef.current.set(newObject.uuid, newObject);
+                    
+          //           setSelectedObjects([{ uuid: newObject.uuid, name: newObject.name, type: newObject.type }]);
+          //           setSelectedSubComponent(null);
+          //           setTool('translate');
+
+          //           addHistoryState(captureSceneState());
+          //           updateSceneGraph();
+          //       }
+                
+          //       targetFace.delete();
+          //       vec.delete();
+          //       prism.delete();
+          //       fusedShape.delete();
+          //       finalShape.delete();
+          //     }
+          //     ocShape.delete();
+          // };
+          // setExtrude(prev => ({ ...prev, action: extrudeAction }));
+        }
       }
 
-      if(gizmoHelper){
+      if(gizmoHelper && (tool !== 'extrude')){
           scene.add(gizmoHelper);
           selectionVisualsRef.current.push(gizmoHelper);
           transformControls.attach(gizmoHelper);
@@ -751,7 +828,7 @@ export default function Viewport() {
       transformControls.visible = true;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedObjects, selectedSubComponent, selectionMode, tool]);
+  }, [selectedObjects, selectedSubComponent, selectionMode, tool, oc]);
 
 
   // --- Effect for Adding Primitives ---
