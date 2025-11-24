@@ -7,7 +7,6 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { useScene } from './scene-provider';
-// import { threeMeshToOpenCascade, openCascadeToThreeMesh } from '@/lib/opencascade-service';
 
 export default function Viewport() {
   const {
@@ -49,7 +48,6 @@ export default function Viewport() {
     setPreviewRequested,
     setPreviewImage,
     isWireframe,
-    oc,
     setExtrude,
   } = useScene();
   
@@ -751,69 +749,7 @@ export default function Viewport() {
         gizmoHelper.lookAt(gizmoHelper.position.clone().add(worldNormal));
         
         if (tool === 'extrude') {
-          // const extrudeAction = (distance) => {
-          //     if (!oc || !actualObject || !selectedSubComponent) return;
-              
-          //     const ocShape = threeMeshToOpenCascade(oc, actualObject);
-              
-          //     const faceFinder = new oc.TopExp_Explorer_1();
-          //     faceFinder.Init(ocShape, oc.TopAbs_ShapeEnum.TopAbs_FACE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
-          //     let faceIndex = 0;
-          //     let targetFace = null;
-          //     while (faceFinder.More()) {
-          //         if (faceIndex === selectedSubComponent.index) {
-          //             targetFace = oc.TopoDS.Face_1(faceFinder.Current());
-          //             break;
-          //         }
-          //         faceFinder.Next();
-          //         faceIndex++;
-          //     }
-
-          //     if (targetFace) {
-          //       const vec = new oc.gp_Vec_4(
-          //           selectedSubComponent.worldNormal.x * distance, 
-          //           selectedSubComponent.worldNormal.y * distance, 
-          //           selectedSubComponent.worldNormal.z * distance
-          //       );
-          //       const prism = new oc.BRepPrimAPI_MakePrism_1(targetFace, vec, false, true);
-          //       const extrudedShape = prism.Shape();
-          //       const fusedShape = new oc.BRepAlgoAPI_Fuse_3(ocShape, extrudedShape);
-          //       fusedShape.Build(new oc.Message_ProgressRange_1());
-          //       const finalShape = fusedShape.Shape();
-
-          //       const { mesh } = openCascadeToThreeMesh(oc, finalShape);
-
-          //       if (mesh) {
-          //           const newObject = mesh;
-          //           newObject.name = actualObject.name;
-          //           newObject.uuid = actualObject.uuid; // Keep same UUID to replace it
-          //           newObject.position.copy(actualObject.position);
-          //           newObject.rotation.copy(actualObject.rotation);
-          //           newObject.scale.copy(actualObject.scale);
-          //           newObject.material = actualObject.material.clone();
-
-          //           scene.remove(actualObject);
-          //           objectsRef.current.delete(actualObject.uuid);
-          //           scene.add(newObject);
-          //           objectsRef.current.set(newObject.uuid, newObject);
-                    
-          //           setSelectedObjects([{ uuid: newObject.uuid, name: newObject.name, type: newObject.type }]);
-          //           setSelectedSubComponent(null);
-          //           setTool('translate');
-
-          //           addHistoryState(captureSceneState());
-          //           updateSceneGraph();
-          //       }
-                
-          //       targetFace.delete();
-          //       vec.delete();
-          //       prism.delete();
-          //       fusedShape.delete();
-          //       finalShape.delete();
-          //     }
-          //     ocShape.delete();
-          // };
-          // setExtrude(prev => ({ ...prev, action: extrudeAction }));
+          // Extrude logic to be added here in a future step.
         }
       }
 
@@ -828,7 +764,7 @@ export default function Viewport() {
       transformControls.visible = true;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedObjects, selectedSubComponent, selectionMode, tool, oc]);
+  }, [selectedObjects, selectedSubComponent, selectionMode, tool]);
 
 
   // --- Effect for Adding Primitives ---

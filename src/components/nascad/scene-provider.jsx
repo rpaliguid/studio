@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
-// import OpenCascade from '@/lib/opencascade-service';
 
 const SceneContext = createContext(null);
 
@@ -53,9 +52,6 @@ export function SceneProvider({ children }) {
   // Wireframe state
   const [isWireframe, setIsWireframe] = useState(false);
 
-  // OpenCascade state
-  const [oc, setOc] = useState(null);
-
   // Extrude tool state
   const [extrude, setExtrude] = useState({ distance: 1, action: null });
   
@@ -63,15 +59,6 @@ export function SceneProvider({ children }) {
     setIsLeftPanelOpen(!isMobile);
   }, [isMobile]);
   
-  // useEffect(() => {
-  //   async function initOC() {
-  //       const openCascade = await OpenCascade();
-  //       setOc(openCascade);
-  //   }
-  //   initOC();
-  // }, []);
-
-
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
   
@@ -197,7 +184,6 @@ export function SceneProvider({ children }) {
     setPreviewImage,
     isWireframe,
     setIsWireframe,
-    oc,
     extrude,
     setExtrude,
   };
