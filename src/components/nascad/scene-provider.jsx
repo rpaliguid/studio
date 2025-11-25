@@ -17,10 +17,18 @@ const useIsMobile = () => {
 
 export function SceneProvider({ children }) {
   const [tool, setTool] = useState('translate'); // translate, rotate, scale, extrude, bevel
+  
+  // Edit Mode state
+  const [editMode, setEditMode] = useState(false); // true for Edit Mode, false for Object Mode
   const [selectionMode, setSelectionMode] = useState('object'); // object, vertex, edge, face
+  
   const [selectedObjects, setSelectedObjects] = useState([]); // Changed from selectedObject to selectedObjects
   const [primitivesToAdd, setPrimitivesToAdd] = useState([]);
-  const [selectedSubComponents, setSelectedSubComponents] = useState([]);
+  const [selectedSubComponents, setSelectedSubComponents] = useState({
+    vertices: [], // array of vertex indices
+    edges: [], // array of edge keys (e.g., '0-1')
+    faces: [], // array of face indices
+  });
   
   // New state for import/export and animation
   const [fileToImport, setFileToImport] = useState(null);
@@ -54,10 +62,19 @@ export function SceneProvider({ children }) {
 
   // Extrude tool state
   const [extrude, setExtrude] = useState({ distance: 1, action: null });
-  
+
   useEffect(() => {
     setIsLeftPanelOpen(!isMobile);
   }, [isMobile]);
+
+  useEffect(() => {
+    if (editMode) {
+      setSelectionMode('vertex'); // Default to vertex selection in edit mode
+    } else {
+      setSelectionMode('object');
+      setSelectedSubComponents({ vertices: [], edges: [], faces: [] });
+    }
+  }, [editMode]);
   
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -81,7 +98,7 @@ export function SceneProvider({ children }) {
   const redo = useCallback(() => {
     if (canRedo) {
       setIsRestoring(true);
-      setHistoryIndex(prev => prev + 1);
+      setHistoryIndex(prev => prev - 1);
     }
   }, [canRedo]);
 
@@ -108,7 +125,7 @@ export function SceneProvider({ children }) {
       setSelectedObjects([]);
     }
     // Also clear sub-component selection when object selection changes
-    setSelectedSubComponents([]);
+    setSelectedSubComponents({ vertices: [], edges: [], faces: [] });
   }, []);
   
   const getObjectAndAllChildren = useCallback((uuid) => {
@@ -139,6 +156,8 @@ export function SceneProvider({ children }) {
   const value = {
     tool,
     setTool,
+    editMode,
+    setEditMode,
     selectionMode,
     setSelectionMode,
     selectedObjects, // New

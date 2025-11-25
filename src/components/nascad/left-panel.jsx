@@ -128,7 +128,6 @@ const SceneItem = ({ node, level = 0 }) => {
 };
 
 const selectionModes = [
-    { id: 'object', icon: Box, name: 'Object' },
     { id: 'vertex', icon: VertexIcon, name: 'Vertex' },
     { id: 'edge', icon: EdgeIcon, name: 'Edge' },
     { id: 'face', icon: FaceIcon, name: 'Face' },
@@ -195,12 +194,29 @@ function ExtrudeToolPanel() {
 }
 
 function LeftPanelContent() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponents, deleteSelectedObjects, sceneGraph, extrude } = useScene();
+  const { 
+    tool, setTool, 
+    editMode, setEditMode,
+    selectionMode, setSelectionMode, 
+    addPrimitive, 
+    setSelectedSubComponents, 
+    deleteSelectedObjects, 
+    sceneGraph 
+  } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
-    setSelectedSubComponents([]); // Clear sub-component selection when changing mode
+    setSelectedSubComponents({ vertices: [], edges: [], faces: [] }); 
   };
+  
+  const toggleEditMode = () => {
+    setEditMode(!editMode);
+    // When exiting edit mode, reset to object selection
+    if (editMode) {
+      setSelectionMode('object');
+    }
+  };
+
   return (
     <aside className="w-72 border-r border-border bg-card overflow-y-auto h-full">
       <Accordion type="multiple" defaultValue={['scene-graph', 'toolbox']} className="w-full">
@@ -218,46 +234,77 @@ function LeftPanelContent() {
           <AccordionTrigger className="px-4 text-sm font-medium">Toolbox</AccordionTrigger>
           <AccordionContent className="px-4 space-y-4">
             <TooltipProvider>
-              {/* {tool === 'extrude' && extrude.action ? (
-                  <ExtrudeToolPanel />
-              ) : ( */}
                 <>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Primitives</p>
-                    <div className="grid grid-cols-4 gap-1">
-                      {primitives.map(primitive => (
-                          <Tooltip key={primitive.name}>
-                              <TooltipTrigger asChild>
-                                  <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={() => addPrimitive(primitive.id)}>
-                                      <primitive.icon className="h-6 w-6 mb-1" />
-                                       <span className="text-xs">{primitive.name}</span>
-                                  </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Add {primitive.name}</p></TooltipContent>
-                          </Tooltip>
-                      ))}
-                      <Tooltip>
-                          <TooltipTrigger asChild>
-                              <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16">
-                                  <Plus className="h-6 w-6 mb-1" />
-                                  <span className="text-xs">Add</span>
-                              </Button>
-                          </TooltipTrigger>
-                          <TooltipContent><p>Add</p></TooltipContent>
-                      </Tooltip>
-                    </div>
+                     <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Mode</p>
+                     <div className="flex flex-wrap gap-1">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                 <Button
+                                    variant={!editMode ? "secondary" : "ghost"}
+                                    className="flex flex-col items-center justify-center h-16 w-16 p-2"
+                                    onClick={() => setEditMode(false)}
+                                >
+                                    <Box className="h-5 w-5 mb-1" />
+                                    <span className="text-xs">Object</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Object Mode</p></TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                 <Button
+                                    variant={editMode ? "secondary" : "ghost"}
+                                    className="flex flex-col items-center justify-center h-16 w-16 p-2"
+                                    onClick={() => setEditMode(true)}
+                                >
+                                    <VertexIcon className="h-5 w-5 mb-1" />
+                                    <span className="text-xs">Edit</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Edit Mode</p></TooltipContent>
+                        </Tooltip>
+                     </div>
                   </div>
-
+                  
                   <Separator />
 
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Selection Mode</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectionModes.map(mode => (
-                          <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select`} />
-                      ))}
+                  {editMode ? (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Selection Mode</p>
+                      <div className="flex flex-wrap gap-1">
+                        {selectionModes.map(mode => (
+                            <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select`} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Primitives</p>
+                      <div className="grid grid-cols-4 gap-1">
+                        {primitives.map(primitive => (
+                            <Tooltip key={primitive.name}>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16" onClick={() => addPrimitive(primitive.id)}>
+                                        <primitive.icon className="h-6 w-6 mb-1" />
+                                         <span className="text-xs">{primitive.name}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Add {primitive.name}</p></TooltipContent>
+                            </Tooltip>
+                        ))}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" className="flex flex-col items-center justify-center h-16 w-16">
+                                    <Plus className="h-6 w-6 mb-1" />
+                                    <span className="text-xs">Add</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Add</p></TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  )}
 
                   <Separator />
                   
@@ -290,7 +337,6 @@ function LeftPanelContent() {
                     </div>
                   </div>
                 </>
-              {/* )} */}
             </TooltipProvider>
           </AccordionContent>
         </AccordionItem>
