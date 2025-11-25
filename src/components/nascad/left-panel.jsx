@@ -201,7 +201,8 @@ function LeftPanelContent() {
     addPrimitive, 
     setSelectedSubComponents, 
     deleteSelectedObjects, 
-    sceneGraph 
+    sceneGraph,
+    selectedObjects,
   } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
@@ -209,13 +210,18 @@ function LeftPanelContent() {
     setSelectedSubComponents({ vertices: [], edges: [], faces: [] }); 
   };
   
-  const toggleEditMode = () => {
-    setEditMode(!editMode);
+  const toggleEditMode = (isEnteringEdit) => {
+    if (isEnteringEdit && selectedObjects.length === 0) {
+      // Don't enter edit mode if nothing is selected
+      return;
+    }
+    setEditMode(isEnteringEdit);
     // When exiting edit mode, reset to object selection
-    if (editMode) {
+    if (!isEnteringEdit) {
       setSelectionMode('object');
     }
   };
+
 
   return (
     <aside className="w-72 border-r border-border bg-card overflow-y-auto h-full">
@@ -243,26 +249,27 @@ function LeftPanelContent() {
                                  <Button
                                     variant={!editMode ? "secondary" : "ghost"}
                                     className="flex flex-col items-center justify-center h-16 w-16 p-2"
-                                    onClick={() => setEditMode(false)}
+                                    onClick={() => toggleEditMode(false)}
                                 >
                                     <Box className="h-5 w-5 mb-1" />
                                     <span className="text-xs">Object</span>
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent><p>Object Mode</p></TooltipContent>
+                            <TooltipContent><p>Object Mode (Tab)</p></TooltipContent>
                         </Tooltip>
                         <Tooltip>
                             <TooltipTrigger asChild>
                                  <Button
                                     variant={editMode ? "secondary" : "ghost"}
                                     className="flex flex-col items-center justify-center h-16 w-16 p-2"
-                                    onClick={() => setEditMode(true)}
+                                    onClick={() => toggleEditMode(true)}
+                                    disabled={selectedObjects.length === 0}
                                 >
                                     <VertexIcon className="h-5 w-5 mb-1" />
                                     <span className="text-xs">Edit</span>
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent><p>Edit Mode</p></TooltipContent>
+                            <TooltipContent><p>Edit Mode (Tab)</p></TooltipContent>
                         </Tooltip>
                      </div>
                   </div>
@@ -274,7 +281,7 @@ function LeftPanelContent() {
                       <p className="text-xs font-medium text-muted-foreground mb-2 px-2">Selection Mode</p>
                       <div className="flex flex-wrap gap-1">
                         {selectionModes.map(mode => (
-                            <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select`} />
+                            <ToolButton key={mode.id} tool={mode} onClick={() => handleSelectionModeChange(mode.id)} currentTool={selectionMode} tooltipText={`${mode.name} Select (1, 2, 3)`} />
                         ))}
                       </div>
                     </div>
