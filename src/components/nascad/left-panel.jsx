@@ -195,11 +195,11 @@ function ExtrudeToolPanel() {
 }
 
 function LeftPanelContent() {
-  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponent, deleteSelectedObjects, sceneGraph, extrude } = useScene();
+  const { tool, setTool, selectionMode, setSelectionMode, addPrimitive, setSelectedSubComponents, deleteSelectedObjects, sceneGraph, extrude } = useScene();
 
   const handleSelectionModeChange = (newMode) => {
     setSelectionMode(newMode);
-    setSelectedSubComponent(null); // Clear sub-component selection when changing mode
+    setSelectedSubComponents([]); // Clear sub-component selection when changing mode
   };
   return (
     <aside className="w-72 border-r border-border bg-card overflow-y-auto h-full">

@@ -20,7 +20,7 @@ export function SceneProvider({ children }) {
   const [selectionMode, setSelectionMode] = useState('object'); // object, vertex, edge, face
   const [selectedObjects, setSelectedObjects] = useState([]); // Changed from selectedObject to selectedObjects
   const [primitivesToAdd, setPrimitivesToAdd] = useState([]);
-  const [selectedSubComponent, setSelectedSubComponent] = useState(null);
+  const [selectedSubComponents, setSelectedSubComponents] = useState([]);
   
   // New state for import/export and animation
   const [fileToImport, setFileToImport] = useState(null);
@@ -107,6 +107,8 @@ export function SceneProvider({ children }) {
     } else {
       setSelectedObjects([]);
     }
+    // Also clear sub-component selection when object selection changes
+    setSelectedSubComponents([]);
   }, []);
   
   const getObjectAndAllChildren = useCallback((uuid) => {
@@ -146,8 +148,8 @@ export function SceneProvider({ children }) {
     primitivesToAdd,
     addPrimitive,
     clearPrimitivesToAdd,
-    selectedSubComponent,
-    setSelectedSubComponent,
+    selectedSubComponents,
+    setSelectedSubComponents,
     fileToImport,
     setFileToImport,
     isPlaying,
