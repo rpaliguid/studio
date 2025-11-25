@@ -787,9 +787,10 @@ export default function Viewport() {
         const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, renderOrder: 2 });
         topology.vertices.forEach((vertex, index) => {
             const vertexHelper = new THREE.Mesh(new THREE.SphereGeometry(VERTEX_HELPER_SIZE), vertexMaterial.clone());
-            vertexHelper.position.copy(vertex);
+            const worldPos = vertex.clone().applyMatrix4(meshToEdit.matrixWorld);
+            vertexHelper.position.copy(worldPos);
             vertexHelper.userData = { isHelper: true, vertexIndex: index };
-            meshToEdit.add(vertexHelper);
+            scene.add(vertexHelper);
             editSessionRef.current.helpers.vertices.push(vertexHelper);
         });
 
@@ -797,12 +798,12 @@ export default function Viewport() {
         const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: EDGE_HELPER_WIDTH, depthTest: false, renderOrder: 1 });
         topology.edges.forEach(edgeKey => {
             const [i1, i2] = edgeKey.split('-').map(Number);
-            const v1 = topology.vertices[i1];
-            const v2 = topology.vertices[i2];
+            const v1 = topology.vertices[i1].clone().applyMatrix4(meshToEdit.matrixWorld);
+            const v2 = topology.vertices[i2].clone().applyMatrix4(meshToEdit.matrixWorld);
             const edgeGeometry = new THREE.BufferGeometry().setFromPoints([v1, v2]);
             const edgeHelper = new THREE.Line(edgeGeometry, edgeMaterial.clone());
             edgeHelper.userData = { isHelper: true, edgeKey: edgeKey };
-            meshToEdit.add(edgeHelper);
+            scene.add(edgeHelper);
             editSessionRef.current.helpers.edges.push(edgeHelper);
         });
     }
