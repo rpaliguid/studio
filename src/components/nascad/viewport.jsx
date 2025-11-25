@@ -806,6 +806,7 @@ export default function Viewport() {
         const isSelected = selectedSubComponents.edges.includes(key);
         const v1 = topology.vertices[a];
         const v2 = topology.vertices[b];
+        if (!v1 || !v2) return; // Add this check
         const geometry = new THREE.BufferGeometry().setFromPoints([v1, v2]);
         const helper = new THREE.Line(geometry, edgeMaterial.clone());
         helper.material.color.set(isSelected ? HIGHLIGHT_COLOR : 0xffffff);
