@@ -11,8 +11,8 @@ import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtil
 
 
 // --- Constants ---
-const HIGHLIGHT_COLOR = 0x1d4ed8; // Blue
-const VERTEX_HELPER_SIZE = 0.03;
+const HIGHLIGHT_COLOR = 0x16b4f7; // Cyan
+const VERTEX_HELPER_SIZE = 0.02;
 const EDGE_HELPER_WIDTH = 3;
 
 // --- Helper Functions ---
@@ -378,7 +378,7 @@ export default function Viewport() {
     scene.add(floor);
 
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0x00ffff, 0x00ffff);
+    const gridHelper = new THREE.GridHelper(500, 500, 0x00FFFF, 0x00FFFF);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
@@ -727,7 +727,7 @@ export default function Viewport() {
     transformControlsRef.current.detach();
   };
   
-  // --- Effect for Edit Mode & Selection Visuals ---
+// --- Effect for Edit Mode & Selection Visuals ---
   useEffect(() => {
     const scene = sceneRef.current;
     const transformControls = transformControlsRef.current;
@@ -739,7 +739,7 @@ export default function Viewport() {
     const outlineGroup = scene.getObjectByName('selectionOutlines');
     if (outlineGroup) scene.remove(outlineGroup);
     
-    if (selectedObjects.length > 0) {
+    if (selectedObjects.length > 0 && !editMode) {
       const newOutlineGroup = new THREE.Group();
       newOutlineGroup.name = 'selectionOutlines';
       scene.add(newOutlineGroup);
@@ -764,7 +764,7 @@ export default function Viewport() {
 
     // --- OBJECT MODE ---
     if (!editMode || !selectedObject) {
-      if (selectedObject) {
+      if (selectedObject && !editMode) {
         const objectToAttach = objectsRef.current.get(selectedObject.uuid);
         if (objectToAttach) transformControls.attach(objectToAttach);
       }
@@ -774,13 +774,14 @@ export default function Viewport() {
     // --- EDIT MODE ---
     const editObject = objectsRef.current.get(selectedObject.uuid);
     if (!editObject || !editObject.isMesh) {
-      setEditMode(false); // Can't enter edit mode on non-mesh or group
+      setEditMode(false);
       return;
     }
 
     const topology = extractTopology(editObject.geometry);
     const helpersGroup = new THREE.Group();
     helpersGroup.userData.isHelper = true;
+    helpersGroup.matrixAutoUpdate = false;
     scene.add(helpersGroup);
 
     editSessionRef.current = {
@@ -789,62 +790,90 @@ export default function Viewport() {
       helpersGroup,
     };
     
-    // --- Create and cache helpers ---
-    const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, renderOrder: 3 });
+    // --- Create vertex helpers ---
+    const vertexGeometry = new THREE.SphereGeometry(VERTEX_HELPER_SIZE * 2, 8, 8);
+    
     topology.vertices.forEach((vertex, index) => {
         const isSelected = selectedSubComponents.vertices.includes(index);
-        const helper = new THREE.Mesh(new THREE.SphereGeometry(VERTEX_HELPER_SIZE), vertexMaterial.clone());
-        helper.material.color.set(isSelected ? HIGHLIGHT_COLOR : 0xffffff);
+        const material = new THREE.MeshBasicMaterial({ 
+          color: isSelected ? HIGHLIGHT_COLOR : 0xffffff,
+          depthTest: false,
+          transparent: true,
+          opacity: isSelected ? 1.0 : 0.8
+        });
+        const helper = new THREE.Mesh(vertexGeometry, material);
         helper.position.copy(vertex);
         helper.userData = { type: 'vertex', index };
-        helper.visible = selectionMode === 'vertex';
+        helper.renderOrder = 999;
         helpersGroup.add(helper);
     });
 
-    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: EDGE_HELPER_WIDTH, depthTest: false, renderOrder: 2 });
+    // --- Create edge helpers ---
     topology.edges.forEach(({ key, a, b }) => {
         const isSelected = selectedSubComponents.edges.includes(key);
         const v1 = topology.vertices[a];
         const v2 = topology.vertices[b];
-        if (!v1 || !v2) return; // Add this check
+        if (!v1 || !v2) return;
+        
         const geometry = new THREE.BufferGeometry().setFromPoints([v1, v2]);
-        const helper = new THREE.Line(geometry, edgeMaterial.clone());
-        helper.material.color.set(isSelected ? HIGHLIGHT_COLOR : 0xffffff);
-        helper.userData = { type: 'edge', key };
-        helper.visible = selectionMode === 'edge';
+        const material = new THREE.LineBasicMaterial({ 
+          color: isSelected ? HIGHLIGHT_COLOR : 0xffffff,
+          linewidth: isSelected ? 4 : 2,
+          depthTest: false,
+          transparent: true,
+          opacity: isSelected ? 1.0 : 0.6
+        });
+        const helper = new THREE.Line(geometry, material);
+        helper.userData = { type: 'edge', key, a, b };
+        helper.renderOrder = 998;
         helpersGroup.add(helper);
     });
     
-    const faceMaterial = new THREE.MeshBasicMaterial({ color: HIGHLIGHT_COLOR, side: THREE.DoubleSide, transparent: true, opacity: 0.3, depthTest: false, renderOrder: 1 });
-    const selectedFaceGeometries = [];
-    selectedSubComponents.faces.forEach(faceIndex => {
-        const face = topology.faces[faceIndex];
-        const positionAttribute = editObject.geometry.getAttribute('position');
-        const vA = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.a);
-        const vB = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.b);
-        const vC = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.c);
+    // --- Create face highlight ---
+    if (selectedSubComponents.faces.length > 0) {
+      const selectedFaceGeometries = [];
+      selectedSubComponents.faces.forEach(faceIndex => {
+          const face = topology.faces[faceIndex];
+          if (!face) return;
+          const positionAttribute = editObject.geometry.getAttribute('position');
+          const vA = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.a);
+          const vB = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.b);
+          const vC = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.c);
 
-        const faceGeometry = new THREE.BufferGeometry().setFromPoints([vA, vB, vC]);
-        faceGeometry.setIndex([0, 1, 2]);
-        selectedFaceGeometries.push(faceGeometry);
-    });
-    if (selectedFaceGeometries.length > 0) {
-      const combinedGeom = BufferGeometryUtils.mergeGeometries(selectedFaceGeometries);
-      const faceVisual = new THREE.Mesh(combinedGeom, faceMaterial);
-      helpersGroup.add(faceVisual);
+          const faceGeometry = new THREE.BufferGeometry().setFromPoints([vA, vB, vC]);
+          faceGeometry.setIndex([0, 1, 2]);
+          selectedFaceGeometries.push(faceGeometry);
+      });
+      
+      if (selectedFaceGeometries.length > 0) {
+        const combinedGeom = BufferGeometryUtils.mergeGeometries(selectedFaceGeometries);
+        const faceMaterial = new THREE.MeshBasicMaterial({ 
+          color: HIGHLIGHT_COLOR, 
+          side: THREE.DoubleSide, 
+          transparent: true, 
+          opacity: 0.4,
+          depthTest: false
+        });
+        const faceVisual = new THREE.Mesh(combinedGeom, faceMaterial);
+        faceVisual.userData = { type: 'faceHighlight' };
+        faceVisual.renderOrder = 997;
+        helpersGroup.add(faceVisual);
+      }
     }
     
+    // Set initial matrix
     helpersGroup.matrix.copy(editObject.matrixWorld);
-    helpersGroup.matrixAutoUpdate = false;
 
     // --- Update Gizmo ---
     const allSelectedVerticesIndices = new Set();
     selectedSubComponents.vertices.forEach(vIdx => allSelectedVerticesIndices.add(vIdx));
     selectedSubComponents.faces.forEach(fIdx => {
         const face = topology.faces[fIdx];
-        allSelectedVerticesIndices.add(face.a);
-        allSelectedVerticesIndices.add(face.b);
-        allSelectedVerticesIndices.add(face.c);
+        if (face) {
+          allSelectedVerticesIndices.add(face.a);
+          allSelectedVerticesIndices.add(face.b);
+          allSelectedVerticesIndices.add(face.c);
+        }
     });
     selectedSubComponents.edges.forEach(edgeKey => {
         const [v1, v2] = edgeKey.split('-').map(Number);
@@ -856,7 +885,7 @@ export default function Viewport() {
         const centroid = new THREE.Vector3();
         allSelectedVerticesIndices.forEach(vertexIndex => {
             const vertex = topology.vertices[vertexIndex];
-            centroid.add(vertex);
+            if (vertex) centroid.add(vertex);
         });
         centroid.divideScalar(allSelectedVerticesIndices.size);
         editObject.localToWorld(centroid);
@@ -873,8 +902,7 @@ export default function Viewport() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode, selectedObject, selectedSubComponents, selectionMode, tool, selectedObjects]);
-
-
+  
   // --- Effect for Adding Primitives ---
   useEffect(() => {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
