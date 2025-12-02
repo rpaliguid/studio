@@ -373,7 +373,7 @@ export default function Viewport() {
     scene.add(floor);
 
 
-    const gridHelper = new THREE.GridHelper(50, 50, 0x00ffff, 0x00ffff);
+    const gridHelper = new THREE.GridHelper(500, 500, 0xFFFFFF, 0xFFFFFF);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
