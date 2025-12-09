@@ -15,6 +15,7 @@ const HIGHLIGHT_COLOR = new THREE.Color(0x16b4f7); // Cyan
 const DEFAULT_COLOR = new THREE.Color(0xffffff); // White
 const FACE_HIGHLIGHT_COLOR = new THREE.Color(0x16b4f7); 
 
+
 // --- Helper Functions ---
 
 /**
