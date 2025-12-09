@@ -152,7 +152,7 @@ export default function Viewport() {
 
     const graph = [];
     const processedUuids = new Set();
-    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'floor', 'Directional Light', 'GizmoHelper', 'EditHelpers']);
+    const internalObjectNames = new Set(['gridHelper', 'Main Camera', 'floor', 'Directional Light', 'GizmoHelper', 'EditHelpers', 'selectionOutlines']);
     
     const buildNode = (object) => {
         if (!object || processedUuids.has(object.uuid) || internalObjectNames.has(object.name) || object.isTransformControls || object.userData.isHelper) return null;
@@ -212,6 +212,14 @@ export default function Viewport() {
             if (child.isMesh && child.geometry) {
                 const geometry = child.geometry;
                 if(geometry.isBufferGeometry) {
+                    // Make sure geometry has index before attempting to clone
+                    if (!geometry.index && geometry.attributes.position) {
+                        const posCount = geometry.attributes.position.count;
+                        const indices = new Uint32Array(posCount);
+                        for(let i = 0; i < posCount; i++) indices[i] = i;
+                        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+                    }
+
                     objData.geometry = {
                         position: Array.from(geometry.attributes.position.array),
                         index: geometry.index ? Array.from(geometry.index.array) : null,
@@ -374,7 +382,6 @@ export default function Viewport() {
 
 
     const gridHelper = new THREE.GridHelper(500, 500, 0xFFFFFF, 0xFFFFFF);
-    const gridHelper = new THREE.GridHelper(500, 500, 0x00FFFF, 0x00FFFF);
     gridHelper.name = 'gridHelper';
     scene.add(gridHelper);
 
@@ -431,22 +438,24 @@ export default function Viewport() {
         if (!editMode || !object || !gizmoHelper || !initialVertexPositions) return;
 
         const positionAttribute = object.geometry.attributes.position;
+        
+        // Calculate the world-space delta of the gizmo
+        const gizmoWorldPosition = gizmoHelper.position.clone();
+        const controlWorldPosition = transformControls.object.position.clone();
+        const worldDelta = controlWorldPosition.sub(gizmoWorldPosition);
 
-        // Calculate the delta movement from the gizmo's helper
-        // The gizmoHelper's position is its starting position (centroid)
-        // The transformControls' position is its current position
-        const worldDelta = gizmoHelper.position.clone().sub(transformControls.object.position).multiplyScalar(-1);
-
-        // Transform delta from world space to object's local space
-        const inverseMatrix = object.matrixWorld.clone().invert();
-        const localDelta = worldDelta.clone().applyQuaternion(new THREE.Quaternion().setFromRotationMatrix(inverseMatrix));
-
-        // Apply delta to all selected vertices from their initial positions
+        // Apply this world delta to each selected vertex from their initial world positions
         selectedSubComponents.vertices.forEach(vIdx => {
-            const initialPos = initialVertexPositions.get(vIdx);
-            if (initialPos) {
-                const newPos = initialPos.clone().add(localDelta);
-                positionAttribute.setXYZ(vIdx, newPos.x, newPos.y, newPos.z);
+            const initialLocalPos = initialVertexPositions.get(vIdx);
+            if (initialLocalPos) {
+                // Convert initial local position to world space
+                const initialWorldPos = initialLocalPos.clone().applyMatrix4(object.matrixWorld);
+                // Add the world-space delta
+                const newWorldPos = initialWorldPos.add(worldDelta);
+                // Convert the new world position back to local space
+                const newLocalPos = newWorldPos.clone().applyMatrix4(object.matrixWorld.clone().invert());
+                
+                positionAttribute.setXYZ(vIdx, newLocalPos.x, newLocalPos.y, newLocalPos.z);
             }
         });
 
@@ -674,21 +683,25 @@ export default function Viewport() {
           helpersGroup.matrix.copy(object.matrixWorld);
 
           // Continuously update helper positions in case geometry is modified externally
-          const positionAttribute = object.geometry.attributes.position;
-          helpersGroup.children.forEach(helper => {
-              if (helper.userData.type === 'vertex') {
-                  const vIdx = helper.userData.index;
-                  helper.position.fromBufferAttribute(positionAttribute, vIdx);
-              } else if (helper.userData.type === 'edge') {
-                  const { a, b } = helper.userData;
-                  const v1 = new THREE.Vector3().fromBufferAttribute(positionAttribute, a);
-                  const v2 = new THREE.Vector3().fromBufferAttribute(positionAttribute, b);
-                  const positions = helper.geometry.attributes.position.array;
-                  positions[0] = v1.x; positions[1] = v1.y; positions[2] = v1.z;
-                  positions[3] = v2.x; positions[4] = v2.y; positions[5] = v2.z;
-                  helper.geometry.attributes.position.needsUpdate = true;
-              }
-          });
+           const positionAttribute = object.geometry.attributes.position;
+            helpersGroup.children.forEach(helper => {
+                if (helper.userData.type === 'vertex') {
+                    const vIdx = helper.userData.index;
+                    helper.position.fromBufferAttribute(positionAttribute, vIdx);
+                    helper.visible = selectionMode === 'vertex';
+                } else if (helper.userData.type === 'edge') {
+                    const { a, b } = helper.userData;
+                    const v1 = new THREE.Vector3().fromBufferAttribute(positionAttribute, a);
+                    const v2 = new THREE.Vector3().fromBufferAttribute(positionAttribute, b);
+                    const positions = helper.geometry.attributes.position.array;
+                    positions[0] = v1.x; positions[1] = v1.y; positions[2] = v1.z;
+                    positions[3] = v2.x; positions[4] = v2.y; positions[5] = v2.z;
+                    helper.geometry.attributes.position.needsUpdate = true;
+                    helper.visible = selectionMode === 'edge';
+                } else if (helper.userData.type === 'face') {
+                    helper.visible = selectionMode === 'face';
+                }
+            });
       }
 
 
@@ -703,7 +716,7 @@ export default function Viewport() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, mixer, animationDuration, editMode]);
+  }, [isPlaying, mixer, animationDuration, editMode, selectionMode]);
 
 
   // --- Effect for Undo/Redo ---
@@ -743,7 +756,7 @@ export default function Viewport() {
     editSessionRef.current = { object: null, topology: null, helpersGroup: null, gizmoHelper: null, initialVertexPositions: null, dragged: false };
   };
   
-// --- Effect for Edit Mode & Selection Visuals ---
+  // --- Effect for Edit Mode & Selection Visuals ---
   useEffect(() => {
     const scene = sceneRef.current;
     const transformControls = transformControlsRef.current;
@@ -755,9 +768,14 @@ export default function Viewport() {
     const outlineGroup = scene.getObjectByName('selectionOutlines');
     if (outlineGroup) {
         scene.remove(outlineGroup);
+        outlineGroup.traverse(child => {
+            if(child.isMesh || child.isLineSegments) {
+                child.geometry?.dispose();
+                child.material?.dispose();
+            }
+        })
     }
     
-    if (selectedObjects.length > 0 && !editMode) {
     if (selectedObjects.length > 0 && !editMode) {
       const newOutlineGroup = new THREE.Group();
       newOutlineGroup.name = 'selectionOutlines';
@@ -771,7 +789,7 @@ export default function Viewport() {
           actualObject.traverse(child => {
             if (child.isMesh) {
                 const edges = new THREE.EdgesGeometry(child.geometry, 1);
-                const objectOutline = new THREE.LineSegments(edges, outlineMaterial);
+                const objectOutline = new THREE.LineSegments(edges, outlineMaterial.clone());
                 objectOutline.position.copy(child.getWorldPosition(new THREE.Vector3()));
                 objectOutline.quaternion.copy(child.getWorldQuaternion(new THREE.Quaternion()));
                 objectOutline.scale.copy(child.getWorldScale(new THREE.Vector3()));
@@ -783,7 +801,7 @@ export default function Viewport() {
 
     // --- OBJECT MODE ---
     if (!editMode || !selectedObject) {
-      if (selectedObject && !editMode) {
+      if (selectedObject) {
         const objectToAttach = objectsRef.current.get(selectedObject.uuid);
         if (objectToAttach) transformControls.attach(objectToAttach);
       }
@@ -793,7 +811,7 @@ export default function Viewport() {
     // --- EDIT MODE ---
     const editObject = objectsRef.current.get(selectedObject.uuid);
     if (!editObject || !editObject.isMesh) {
-      setEditMode(false);
+      setEditMode(false); // Can't enter edit mode on non-mesh or group
       return;
     }
     
@@ -802,9 +820,6 @@ export default function Viewport() {
     // --- Create Helper Group ---
     const helpersGroup = new THREE.Group();
     helpersGroup.name = "EditHelpers";
-    helpersGroup.matrixAutoUpdate = false;
-    helpersGroup.matrix.copy(editObject.matrixWorld);
-    helpersGroup.userData.isHelper = true;
     helpersGroup.matrixAutoUpdate = false;
     scene.add(helpersGroup);
 
@@ -815,15 +830,6 @@ export default function Viewport() {
 
     // --- Create Vertex Helpers ---
     const vertexMaterial = new THREE.MeshBasicMaterial({ color: DEFAULT_COLOR, depthTest: false, transparent: true });
-    editSessionRef.current = {
-      object: editObject,
-      topology,
-      helpersGroup,
-    };
-    
-    // --- Create vertex helpers ---
-    const vertexGeometry = new THREE.SphereGeometry(VERTEX_HELPER_SIZE * 2, 8, 8);
-    
     topology.vertices.forEach((vertex, index) => {
         const isSelected = selectedSubComponents.vertices.includes(index);
         const sphere = new THREE.Mesh(vertexGeoRef.current, vertexMaterial.clone());
@@ -831,49 +837,22 @@ export default function Viewport() {
         sphere.position.copy(vertex);
         sphere.userData = { type: 'vertex', index: index };
         sphere.renderOrder = 999;
-        sphere.visible = selectionMode === 'vertex';
         helpersGroup.add(sphere);
-        const material = new THREE.MeshBasicMaterial({ 
-          color: isSelected ? HIGHLIGHT_COLOR : 0xffffff,
-          depthTest: false,
-          transparent: true,
-          opacity: isSelected ? 1.0 : 0.8
-        });
-        const helper = new THREE.Mesh(vertexGeometry, material);
-        helper.position.copy(vertex);
-        helper.userData = { type: 'vertex', index };
-        helper.renderOrder = 999;
-        helpersGroup.add(helper);
     });
 
     // --- Create Edge Helpers ---
     const edgeMaterial = new THREE.LineBasicMaterial({ color: DEFAULT_COLOR, linewidth: 4, depthTest: false });
-    // --- Create edge helpers ---
     topology.edges.forEach(({ key, a, b }) => {
         if (!topology.vertices[a] || !topology.vertices[b]) return;
         const v1 = topology.vertices[a];
         const v2 = topology.vertices[b];
-        if (!v1 || !v2) return;
-        
         const geometry = new THREE.BufferGeometry().setFromPoints([v1, v2]);
         const isSelected = selectedSubComponents.edges.includes(key);
         const line = new THREE.Line(geometry, edgeMaterial.clone());
         if(isSelected) line.material.color.copy(HIGHLIGHT_COLOR);
         line.userData = { type: 'edge', key, a, b };
         line.renderOrder = 998;
-        line.visible = selectionMode === 'edge';
         helpersGroup.add(line);
-        const material = new THREE.LineBasicMaterial({ 
-          color: isSelected ? HIGHLIGHT_COLOR : 0xffffff,
-          linewidth: isSelected ? 4 : 2,
-          depthTest: false,
-          transparent: true,
-          opacity: isSelected ? 1.0 : 0.6
-        });
-        const helper = new THREE.Line(geometry, material);
-        helper.userData = { type: 'edge', key, a, b };
-        helper.renderOrder = 998;
-        helpersGroup.add(helper);
     });
     
     // --- Create Face Helpers ---
@@ -891,16 +870,6 @@ export default function Viewport() {
         const vA = topology.vertices[a];
         const vB = topology.vertices[b];
         const vC = topology.vertices[c];
-    // --- Create face highlight ---
-    if (selectedSubComponents.faces.length > 0) {
-      const selectedFaceGeometries = [];
-      selectedSubComponents.faces.forEach(faceIndex => {
-          const face = topology.faces[faceIndex];
-          if (!face) return;
-          const positionAttribute = editObject.geometry.getAttribute('position');
-          const vA = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.a);
-          const vB = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.b);
-          const vC = new THREE.Vector3().fromBufferAttribute(positionAttribute, face.c);
 
         const faceGeometry = new THREE.BufferGeometry();
         faceGeometry.setAttribute('position', new THREE.Float32BufferAttribute([vA.x, vA.y, vA.z, vB.x, vB.y, vB.z, vC.x, vC.y, vC.z], 3));
@@ -922,37 +891,14 @@ export default function Viewport() {
       dragged: false,
     };
     
-          const faceGeometry = new THREE.BufferGeometry().setFromPoints([vA, vB, vC]);
-          faceGeometry.setIndex([0, 1, 2]);
-          selectedFaceGeometries.push(faceGeometry);
-      });
-      
-      if (selectedFaceGeometries.length > 0) {
-        const combinedGeom = BufferGeometryUtils.mergeGeometries(selectedFaceGeometries);
-        const faceMaterial = new THREE.MeshBasicMaterial({ 
-          color: HIGHLIGHT_COLOR, 
-          side: THREE.DoubleSide, 
-          transparent: true, 
-          opacity: 0.4,
-          depthTest: false
-        });
-        const faceVisual = new THREE.Mesh(combinedGeom, faceMaterial);
-        faceVisual.userData = { type: 'faceHighlight' };
-        faceVisual.renderOrder = 997;
-        helpersGroup.add(faceVisual);
-      }
-    }
-    
-    // Set initial matrix
-    helpersGroup.matrix.copy(editObject.matrixWorld);
-
     // --- Update Gizmo ---
     const centroid = new THREE.Vector3();
     let count = 0;
     
     if (selectionMode === 'vertex' && selectedSubComponents.vertices.length > 0) {
         selectedSubComponents.vertices.forEach(vIdx => {
-            centroid.add(topology.vertices[vIdx]);
+            const vertexPosition = topology.vertices[vIdx];
+            if(vertexPosition) centroid.add(vertexPosition);
             count++;
         });
     } else if (selectionMode === 'edge' && selectedSubComponents.edges.length > 0) {
@@ -978,33 +924,10 @@ export default function Viewport() {
     
     if (count > 0) {
         centroid.divideScalar(count);
-        editObject.localToWorld(centroid); // Convert centroid to world space
-    const allSelectedVerticesIndices = new Set();
-    selectedSubComponents.vertices.forEach(vIdx => allSelectedVerticesIndices.add(vIdx));
-    selectedSubComponents.faces.forEach(fIdx => {
-        const face = topology.faces[fIdx];
-        if (face) {
-          allSelectedVerticesIndices.add(face.a);
-          allSelectedVerticesIndices.add(face.b);
-          allSelectedVerticesIndices.add(face.c);
-        }
-    });
-    selectedSubComponents.edges.forEach(edgeKey => {
-        const [v1, v2] = edgeKey.split('-').map(Number);
-        allSelectedVerticesIndices.add(v1);
-        allSelectedVerticesIndices.add(v2);
-    });
-
-    if (allSelectedVerticesIndices.size > 0) {
-        const centroid = new THREE.Vector3();
-        allSelectedVerticesIndices.forEach(vertexIndex => {
-            const vertex = topology.vertices[vertexIndex];
-            if (vertex) centroid.add(vertex);
-        });
-        centroid.divideScalar(allSelectedVerticesIndices.size);
-        editObject.localToWorld(centroid);
-        
         gizmoHelper.position.copy(centroid);
+        // The gizmo helper's position is in local space, but transformControls works in world space.
+        // We need to apply the object's world matrix to the helper.
+        gizmoHelper.applyMatrix4(editObject.matrixWorld);
         transformControls.attach(gizmoHelper);
     } else {
         transformControls.detach();
@@ -1013,20 +936,12 @@ export default function Viewport() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode, selectedObject, selectedSubComponents, selectionMode, tool, selectedObjects]);
-  
+
+
   // --- Effect for Adding Primitives ---
   useEffect(() => {
     if (primitivesToAdd.length > 0 && sceneRef.current) {
       primitivesToAdd.forEach(primitiveType => {
-        const loader = new GLTFLoader();
-        
-        if (primitiveType === 'torus') {
-          loader.load('https://cdn.glitch.me/68b2a272-e034-45d6-8832-c1161245a4a5/torus.glb', (gltf) => {
-            handleLoadedModel(gltf.scene, [], primitiveType);
-          });
-          return;
-        }
-
         let geometry;
         const randomColor = new THREE.Color().setHSL(Math.random(), 0.7, 0.6);
         const material = new THREE.MeshStandardMaterial({
@@ -1046,13 +961,11 @@ export default function Viewport() {
           case 'cylinder':
             geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
             break;
+          case 'torus':
+            geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 100);
+            break;
           default:
             return;
-        }
-
-        // Ensure the geometry is indexed for sub-component selection
-        if (!geometry.index) {
-          geometry = geometry.toIndexed();
         }
         
         geometry.computeVertexNormals();
